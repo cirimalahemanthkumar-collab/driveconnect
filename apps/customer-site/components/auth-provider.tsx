@@ -157,3 +157,4 @@ function clearSession() {
   window.localStorage.removeItem(storageKeys.token);
   window.localStorage.removeItem(storageKeys.user);
 }
+

@@ -9,3 +9,4 @@ export default function PartnerLayout({ children }: { children: ReactNode }) {
     </RoleGuard>
   );
 }
+

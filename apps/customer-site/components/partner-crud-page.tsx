@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button, Card, Input, Select, StatusBadge } from "../../web/components/ui";
+import { Button, Card, Input, Select, StatusBadge } from "@/components/ui";
 import { useApiResource } from "../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../lib/api";
 import { asList, dateText, money, text } from "../lib/records";
@@ -132,3 +132,4 @@ function FormControl({
 
   return <Input value={value} onChange={(event) => onChange(event.target.value)} type={field.type ?? "text"} placeholder={field.placeholder} required={field.required} />;
 }
+

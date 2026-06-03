@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, Card, Input } from "../../../web/components/ui";
+import { Button, Card, Input } from "@/components/ui";
 import { useAuth } from "../../components/auth-provider";
 import { Field, FormError } from "../../components/portal-ui";
 import { getApiErrorMessage } from "../../lib/api";
@@ -61,3 +61,4 @@ export default function RegisterPage() {
     </main>
   );
 }
+

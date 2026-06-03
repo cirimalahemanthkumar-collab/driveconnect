@@ -10,3 +10,4 @@ export default function CustomerReviewsPage() {
     { label: "Created", keys: ["createdAt"], format: "date" }
   ]} />;
 }
+

@@ -29,3 +29,4 @@ export const API_ENDPOINTS = {
     documents: "/api/documents/partner/school"
   }
 } as const;
+

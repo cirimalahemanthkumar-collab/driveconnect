@@ -10,3 +10,4 @@ export default function CustomerSessionsPage() {
     { label: "Notes", keys: ["notes", "progressNotes"] }
   ]} />;
 }
+

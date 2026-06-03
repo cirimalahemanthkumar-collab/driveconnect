@@ -16,3 +16,4 @@ export default function PartnerVehiclesPage() {
     { label: "Status", keys: ["status", "active"], format: "status" }
   ]} />;
 }
+

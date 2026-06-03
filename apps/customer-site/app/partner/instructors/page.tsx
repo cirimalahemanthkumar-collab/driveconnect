@@ -16,3 +16,4 @@ export default function PartnerInstructorsPage() {
     { label: "Status", keys: ["status", "active"], format: "status" }
   ]} />;
 }
+

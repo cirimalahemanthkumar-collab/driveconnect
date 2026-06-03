@@ -22,3 +22,4 @@ export function RoleGuard({ roles, children }: { roles: AppRole[]; children: Rea
 
   return <>{children}</>;
 }
+

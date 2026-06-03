@@ -1,4 +1,4 @@
-import { Button, CourseCard, DashboardStatCard, SchoolCard, TrustBadges } from "../../web/components/ui";
+import { Button, CourseCard, DashboardStatCard, SchoolCard, TrustBadges } from "@/components/ui";
 import { courses, schools } from "../../web/lib/mock";
 
 const learnerStats = [
@@ -53,3 +53,4 @@ export default function LandingPage() {
     </main>
   );
 }
+

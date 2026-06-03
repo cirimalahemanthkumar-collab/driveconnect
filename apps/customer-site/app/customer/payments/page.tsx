@@ -10,3 +10,4 @@ export default function CustomerPaymentsPage() {
     { label: "Paid on", keys: ["paidAt", "createdAt"], format: "date" }
   ]} />;
 }
+

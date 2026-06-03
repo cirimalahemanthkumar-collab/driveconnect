@@ -10,3 +10,4 @@ export default function CustomerBookingsPage() {
     { label: "Created", keys: ["createdAt"], format: "date" }
   ]} />;
 }
+

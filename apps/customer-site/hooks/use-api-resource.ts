@@ -26,3 +26,4 @@ export function useApiResource<T>(url: string, initialValue: T) {
 
   return { data, error, loading, reload, setData };
 }
+

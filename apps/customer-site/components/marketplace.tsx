@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, DashboardStatCard, StatusBadge } from "../../web/components/ui";
+import { Badge, Button, Card, DashboardStatCard, StatusBadge } from "@/components/ui";
 import { apiRequest, getApiErrorMessage } from "../lib/api";
 import { API_ENDPOINTS } from "../lib/endpoints";
 import { asList, money, numberValue, text, type ApiRecord } from "../lib/records";
@@ -100,3 +100,4 @@ export function Marketplace({ compact = false }: { compact?: boolean }) {
     </div>
   );
 }
+

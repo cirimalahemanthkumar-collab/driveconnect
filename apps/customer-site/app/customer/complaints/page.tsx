@@ -10,3 +10,4 @@ export default function CustomerComplaintsPage() {
     { label: "Created", keys: ["createdAt"], format: "date" }
   ]} />;
 }
+

@@ -49,3 +49,4 @@ export function getApiErrorMessage(error: unknown, fallback = "Unable to complet
 
   return error instanceof Error ? error.message : fallback;
 }
+

@@ -3,13 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "..\\..\\scripts\\node-local.cmd ..\\..\\node_modules\\next\\dist\\bin\\next dev -p 3000",
-    "build": "..\\..\\scripts\\node-local.cmd ..\\..\\node_modules\\next\\dist\\bin\\next build",
-    "start": "..\\..\\scripts\\node-local.cmd ..\\..\\node_modules\\next\\dist\\bin\\next start -p 3000",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "lint": "..\\..\\scripts\\node-local.cmd ..\\..\\node_modules\\typescript\\bin\\tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@driveconnect/shared": "0.1.0",
     "axios": "^1.16.1",
     "next": "^15.0.2",
     "react": "^18.3.1",

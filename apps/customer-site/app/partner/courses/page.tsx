@@ -19,3 +19,4 @@ export default function PartnerCoursesPage() {
     { label: "Status", keys: ["status", "active"], format: "status" }
   ]} />;
 }
+

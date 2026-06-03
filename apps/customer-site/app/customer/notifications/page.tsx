@@ -10,3 +10,4 @@ export default function CustomerNotificationsPage() {
     { label: "Created", keys: ["createdAt"], format: "date" }
   ]} />;
 }
+
