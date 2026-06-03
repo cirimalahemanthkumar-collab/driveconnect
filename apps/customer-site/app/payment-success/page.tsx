@@ -1,2 +1,2 @@
-export { default } from "../../../web/app/payment-success/page";
-
+import { Card, Button, StatusBadge } from "@/components/ui";
+export default function PaymentSuccessPage(){return <main className="mx-auto max-w-5xl px-4 py-10"><Card><StatusBadge status="SUCCESS"/><h1 className="mt-4 text-3xl font-black text-slate-950">Payment Successful</h1><p className="mt-3 text-slate-600">Your payment has been recorded successfully.</p><div className="mt-6"><Button href="/customer/bookings">View Bookings</Button></div></Card></main>}

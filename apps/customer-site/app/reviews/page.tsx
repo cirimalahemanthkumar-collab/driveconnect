@@ -1,2 +1,2 @@
-export { default } from "../../../web/app/reviews/page";
-
+import { Card, Button } from "@/components/ui";
+export default function ReviewsPage(){return <main className="mx-auto max-w-5xl px-4 py-10"><Card><h1 className="text-3xl font-black text-slate-950">Reviews</h1><p className="mt-3 text-slate-600">Customer reviews are available inside your customer dashboard.</p><div className="mt-6"><Button href="/customer/reviews">My Reviews</Button></div></Card></main>}

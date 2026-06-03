@@ -1,1 +1,2 @@
-export { default } from "../../../../web/app/bookings/[id]/page";
+import { Card, Button } from "@/components/ui";
+export default function BookingDetailsPage(){return <main className="mx-auto max-w-5xl px-4 py-10"><Card><h1 className="text-3xl font-black text-slate-950">Booking Details</h1><p className="mt-3 text-slate-600">View your booking details from the customer dashboard.</p><div className="mt-6"><Button href="/customer/bookings">My Bookings</Button></div></Card></main>}

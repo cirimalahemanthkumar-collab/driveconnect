@@ -15,16 +15,10 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "../web/components/**/*.ts",
-    "../web/components/**/*.tsx",
-    "../web/lib/**/*.ts",
-    "../web/lib/**/*.tsx"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "../web/app",
-    "../web/node_modules",
-    "../web/.next"
+    ".next"
   ]
 }

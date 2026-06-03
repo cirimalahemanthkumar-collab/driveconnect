@@ -1,1 +1,2 @@
-export { default } from "../../../../web/app/courses/[id]/page";
+import { Card, Button } from "@/components/ui";
+export default function CourseDetailsPage(){return <main className="mx-auto max-w-5xl px-4 py-10"><Card><h1 className="text-3xl font-black text-slate-950">Course Details</h1><p className="mt-3 text-slate-600">Select a course from the marketplace and continue booking.</p><div className="mt-6"><Button href="/customer/marketplace">Explore Courses</Button></div></Card></main>}
