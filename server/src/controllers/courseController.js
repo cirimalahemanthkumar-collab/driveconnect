@@ -1,8 +1,22 @@
 const pool = require("../db");
 
-const allowedVehicleTypes = ["TWO_WHEELER", "FOUR_WHEELER", "BOTH", "CAR", "HEAVY_VEHICLE"];
+const allowedVehicleTypes = ["TWO_WHEELER", "CAR", "HEAVY_VEHICLE"];
 const allowedTransmissions = ["MANUAL", "AUTOMATIC", "BOTH"];
 const allowedCourseTypes = ["BEGINNER", "ADVANCED", "REFRESHER", "TEST_PREP"];
+
+function normalizeVehicleType(vehicleType) {
+  switch (String(vehicleType || "").trim().toUpperCase()) {
+    case "FOUR_WHEELER":
+    case "CAR":
+      return "CAR";
+    case "TWO_WHEELER":
+      return "TWO_WHEELER";
+    case "HEAVY_VEHICLE":
+      return "HEAVY_VEHICLE";
+    default:
+      return null;
+  }
+}
 
 async function getApprovedSchoolByOwner(userId) {
   const result = await pool.query(
@@ -86,10 +100,12 @@ const createCourse = async (req, res) => {
       });
     }
 
-    if (!allowedVehicleTypes.includes(vehicle_type)) {
+    const normalizedVehicleType = normalizeVehicleType(vehicle_type);
+
+    if (!normalizedVehicleType) {
       return res.status(400).json({
         success: false,
-        message: "Invalid vehicle type",
+        message: `Invalid vehicle type. Use ${allowedVehicleTypes.join(", ")}.`,
       });
     }
 
@@ -148,7 +164,7 @@ const createCourse = async (req, res) => {
         course_name,
         description,
         course_type || null,
-        vehicle_type,
+        normalizedVehicleType,
         transmission,
         duration_days,
         total_sessions,
@@ -207,10 +223,12 @@ const updateCourse = async (req, res) => {
       });
     }
 
-    if (!allowedVehicleTypes.includes(vehicle_type)) {
+    const normalizedVehicleType = normalizeVehicleType(vehicle_type);
+
+    if (!normalizedVehicleType) {
       return res.status(400).json({
         success: false,
-        message: "Invalid vehicle type",
+        message: `Invalid vehicle type. Use ${allowedVehicleTypes.join(", ")}.`,
       });
     }
 
@@ -272,7 +290,7 @@ const updateCourse = async (req, res) => {
         course_name,
         description,
         course_type || null,
-        vehicle_type,
+        normalizedVehicleType,
         transmission,
         duration_days,
         total_sessions,

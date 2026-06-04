@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button, Card, Input, Select, StatusBadge } from "@/components/ui";
+import { Button, Card, Input, Select, StatusBadge } from "../../../../web/components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../../../lib/api";
 import { API_ENDPOINTS } from "../../../lib/endpoints";
@@ -20,7 +20,11 @@ type CourseForm = {
   description: string;
 };
 
-const vehicleTypes = ["TWO_WHEELER", "FOUR_WHEELER", "BOTH"];
+const vehicleTypeOptions = [
+  { label: "Two Wheeler", value: "TWO_WHEELER" },
+  { label: "Car / Four Wheeler", value: "CAR" },
+  { label: "Heavy Vehicle", value: "HEAVY_VEHICLE" }
+];
 const courseTypes = ["BEGINNER", "ADVANCED", "REFRESHER", "TEST_PREP"];
 const transmissions = ["MANUAL", "AUTOMATIC", "BOTH"];
 const requiredFields = ["course_name", "vehicle_type", "transmission", "duration_days", "total_sessions", "price"] as const;
@@ -135,7 +139,7 @@ export default function PartnerCoursesPage() {
             <Field label="Vehicle type">
               <Select value={form.vehicle_type} onChange={(event) => updateForm(setForm, "vehicle_type", event.target.value)} required>
                 <option value="">Select</option>
-                {vehicleTypes.map((option) => <option key={option} value={option}>{option}</option>)}
+                {vehicleTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </Select>
             </Field>
             <Field label="Course type">
@@ -182,7 +186,7 @@ export default function PartnerCoursesPage() {
           return (
             <tr key={courseId || `${text(course, "course_name", "title", "name")}-${index}`}>
               <td className="whitespace-nowrap px-4 py-4 font-semibold text-slate-900">{text(course, "course_name", "title", "name")}</td>
-              <td className="whitespace-nowrap px-4 py-4 text-slate-700">{text(course, "vehicle_type", "vehicleType")}</td>
+              <td className="whitespace-nowrap px-4 py-4 text-slate-700">{vehicleTypeLabel(text(course, "vehicle_type", "vehicleType"))}</td>
               <td className="whitespace-nowrap px-4 py-4 text-slate-700">{text(course, "transmission")}</td>
               <td className="whitespace-nowrap px-4 py-4 text-slate-700">{text(course, "total_sessions", "totalSessions", "sessions")}</td>
               <td className="whitespace-nowrap px-4 py-4 text-slate-700"><span className="font-bold">{money(text(course, "price"))}</span></td>
@@ -224,7 +228,7 @@ function emptyCourseForm(): CourseForm {
 function formFromCourse(course: ApiRecord): CourseForm {
   return {
     course_name: cleanValue(text(course, "course_name", "title", "name")),
-    vehicle_type: cleanValue(text(course, "vehicle_type", "vehicleType")),
+    vehicle_type: normalizeVehicleTypeValue(cleanValue(text(course, "vehicle_type", "vehicleType"))),
     course_type: cleanValue(text(course, "course_type", "courseType", "type")),
     transmission: cleanValue(text(course, "transmission")),
     total_sessions: cleanValue(text(course, "total_sessions", "totalSessions", "sessions")),
@@ -238,7 +242,7 @@ function formFromCourse(course: ApiRecord): CourseForm {
 function toPayload(form: CourseForm) {
   return {
     course_name: form.course_name.trim(),
-    vehicle_type: form.vehicle_type,
+    vehicle_type: normalizeVehicleTypeValue(form.vehicle_type),
     course_type: form.course_type,
     transmission: form.transmission,
     duration_days: Number(form.duration_days),
@@ -271,4 +275,15 @@ function isCourseActive(course: ApiRecord) {
 
 function cleanValue(value: string) {
   return value === "-" ? "" : value;
+}
+
+function normalizeVehicleTypeValue(value: string) {
+  if (value === "FOUR_WHEELER") return "CAR";
+  return value;
+}
+
+function vehicleTypeLabel(value: string) {
+  const normalized = normalizeVehicleTypeValue(cleanValue(value));
+  const fallback = cleanValue(value);
+  return vehicleTypeOptions.find((option) => option.value === normalized)?.label ?? (fallback || "-");
 }
