@@ -1,0 +1,381 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  SCHOOL_OWNER
+  INSTRUCTOR
+  ADMIN
+}
+
+enum BookingStatus {
+  BOOKING_CREATED
+  PAYMENT_PENDING
+  PAYMENT_SUCCESS
+  WAITING_FOR_SCHOOL_ACCEPTANCE
+  SCHOOL_ACCEPTED
+  SCHOOL_REJECTED
+  INSTRUCTOR_ASSIGNED
+  CLASS_SCHEDULED
+  CLASS_STARTED
+  CLASS_COMPLETED
+  COURSE_IN_PROGRESS
+  COURSE_COMPLETED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum SchoolVerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum VehicleType {
+  TWO_WHEELER
+  FOUR_WHEELER
+  BOTH
+  LMV
+  HMV
+}
+
+enum CourseType {
+  BEGINNER
+  ADVANCED
+  REFRESHER
+  TEST_PREP
+  CORPORATE
+}
+
+enum PaymentStatus {
+  CREATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum SettlementStatus {
+  PENDING
+  PROCESSING
+  PAID
+  ON_HOLD
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ClassSessionStatus {
+  SCHEDULED
+  STARTED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model User {
+  id                String           @id @default(cuid())
+  mobile            String           @unique
+  name              String?
+  email             String?          @unique
+  role              UserRole         @default(CUSTOMER)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  customerProfile   CustomerProfile?
+  ownedSchools      DrivingSchool[]  @relation("SchoolOwner")
+  instructorProfile Instructor?
+  notifications     Notification[]
+}
+
+model CustomerProfile {
+  id         String      @id @default(cuid())
+  userId     String      @unique
+  name       String?
+  address    String?
+  latitude   Float?
+  longitude  Float?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings   Booking[]
+  complaints Complaint[]
+  reviews    Review[]
+}
+
+model DrivingSchool {
+  id                        String                   @id @default(cuid())
+  ownerId                   String
+  name                      String
+  slug                      String                   @unique
+  status                    SchoolVerificationStatus @default(PENDING)
+  description               String
+  phone                     String
+  email                     String?
+  address                   String
+  city                      String
+  state                     String                   @default("")
+  pincode                   String                   @default("")
+  latitude                  Float
+  longitude                 Float
+  rating                    Float                    @default(0)
+  totalReviews              Int                      @default(0)
+  ownerName                 String                   @default("") @map("owner_name")
+  ownerPhone                String                   @default("") @map("owner_phone")
+  ownerEmail                String                   @default("") @map("owner_email")
+  googleMapsLink            String                   @default("") @map("google_maps_link")
+  licenseNumber             String                   @default("") @map("license_number")
+  licenseDocumentUrl        String                   @default("") @map("license_document_url")
+  ownerIdProofUrl           String                   @default("") @map("owner_id_proof_url")
+  panNumber                 String                   @default("") @map("pan_number")
+  gstNumber                 String?                  @map("gst_number")
+  bankAccountName           String                   @default("") @map("bank_account_name")
+  bankAccountNumber         String                   @default("") @map("bank_account_number")
+  ifsc                      String                   @default("")
+  upiId                     String                   @default("") @map("upi_id")
+  workingHours              String                   @default("") @map("working_hours")
+  pickupDropAvailable       Boolean                  @default(false) @map("pickup_drop_available")
+  serviceRadiusKm           Int                      @default(0) @map("service_radius_km")
+  verificationStatus        SchoolVerificationStatus @default(PENDING) @map("verification_status")
+  rejectionReason           String?                  @map("rejection_reason")
+  verificationSubmittedAt   DateTime?                @map("verification_submitted_at")
+  verificationReviewedAt    DateTime?                @map("verification_reviewed_at")
+  verificationReviewedBy    String?                  @map("verification_reviewed_by")
+  commissionPercentage      Decimal                  @default(18) @db.Decimal(5, 2)
+  pickupAvailable           Boolean                  @default(false)
+  femaleInstructorAvailable Boolean                  @default(false)
+  availabilityScore         Float                    @default(0.85)
+  complaintPenalty          Float                    @default(0)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  owner                     User                     @relation("SchoolOwner", fields: [ownerId], references: [id])
+  documents                 SchoolDocument[]
+  instructors               Instructor[]
+  vehicles                  Vehicle[]
+  courses                   Course[]
+  bookings                  Booking[]
+  reviews                   Review[]
+  complaints                Complaint[]
+  featuredListings          FeaturedListing[]
+  settlements               Settlement[]
+}
+
+model SchoolDocument {
+  id         String                   @id @default(cuid())
+  schoolId   String
+  type       String
+  url        String
+  status     SchoolVerificationStatus @default(PENDING)
+  uploadedAt DateTime                 @default(now())
+  school     DrivingSchool            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+}
+
+model Instructor {
+  id              String         @id @default(cuid())
+  schoolId        String
+  userId          String?        @unique
+  name            String
+  phone           String
+  gender          Gender
+  experienceYears Int
+  languages       String[]
+  rating          Float          @default(0)
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  school          DrivingSchool  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user            User?          @relation(fields: [userId], references: [id])
+  bookings        Booking[]      @relation("BookingInstructor")
+  classSessions   ClassSession[]
+}
+
+model Vehicle {
+  id                 String        @id @default(cuid())
+  schoolId           String
+  type               VehicleType
+  make               String
+  model              String
+  registrationNumber String
+  active             Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  school             DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id             String        @id @default(cuid())
+  schoolId       String
+  title          String
+  type           CourseType
+  vehicleType    VehicleType
+  durationDays   Int
+  totalSessions  Int
+  price          Decimal       @db.Decimal(10, 2)
+  advanceAmount  Decimal       @db.Decimal(10, 2)
+  description    String
+  pickupIncluded Boolean       @default(false)
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  school         DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+}
+
+model Booking {
+  id                 String          @id @default(cuid())
+  customerId         String
+  schoolId           String
+  courseId           String
+  instructorId       String?
+  status             BookingStatus   @default(BOOKING_CREATED)
+  totalAmount        Decimal         @db.Decimal(10, 2)
+  advanceAmount      Decimal         @db.Decimal(10, 2)
+  preferredStartDate DateTime
+  preferredTimeSlot  String
+  pickupAddress      String?
+  notes              String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  customer           CustomerProfile @relation(fields: [customerId], references: [id])
+  school             DrivingSchool   @relation(fields: [schoolId], references: [id])
+  course             Course          @relation(fields: [courseId], references: [id])
+  instructor         Instructor?     @relation("BookingInstructor", fields: [instructorId], references: [id])
+  sessions           ClassSession[]
+  payment            Payment?
+  review             Review?
+  complaints         Complaint[]
+}
+
+model ClassSession {
+  id            String             @id @default(cuid())
+  bookingId     String
+  instructorId  String?
+  scheduledAt   DateTime
+  status        ClassSessionStatus @default(SCHEDULED)
+  notes         String?
+  progressNotes String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  booking       Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  instructor    Instructor?        @relation(fields: [instructorId], references: [id])
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  bookingId          String        @unique
+  amount             Decimal       @db.Decimal(10, 2)
+  status             PaymentStatus @default(CREATED)
+  method             String
+  providerOrderId    String?       @unique
+  providerPaymentId  String?
+  providerSignature  String?
+  platformCommission Decimal       @default(0) @db.Decimal(10, 2)
+  schoolPayout       Decimal       @default(0) @db.Decimal(10, 2)
+  paidAt             DateTime?
+  refundId           String?
+  refundedAt         DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  booking            Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  settlement         Settlement?
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventId     String   @unique
+  eventType   String
+  payload     Json
+  processedAt DateTime @default(now())
+}
+
+model Review {
+  id               String          @id @default(cuid())
+  bookingId        String?         @unique
+  schoolId         String
+  customerId       String
+  rating           Int
+  instructorRating Int?
+  comment          String
+  createdAt        DateTime        @default(now())
+  booking          Booking?        @relation(fields: [bookingId], references: [id])
+  school           DrivingSchool   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  customer         CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Complaint {
+  id          String           @id @default(cuid())
+  bookingId   String?
+  customerId  String?
+  schoolId    String?
+  subject     String
+  description String
+  status      ComplaintStatus  @default(OPEN)
+  resolution  String?
+  createdAt   DateTime         @default(now())
+  resolvedAt  DateTime?
+  booking     Booking?         @relation(fields: [bookingId], references: [id])
+  customer    CustomerProfile? @relation(fields: [customerId], references: [id])
+  school      DrivingSchool?   @relation(fields: [schoolId], references: [id])
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  description   String
+  discountType  String
+  discountValue Decimal  @db.Decimal(10, 2)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+}
+
+model FeaturedListing {
+  id         String        @id @default(cuid())
+  schoolId   String
+  startsAt   DateTime
+  endsAt     DateTime
+  boostScore Float         @default(12)
+  active     Boolean       @default(true)
+  school     DrivingSchool @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+}
+
+model Settlement {
+  id                 String           @id @default(cuid())
+  schoolId           String
+  paymentId          String?          @unique
+  amount             Decimal          @db.Decimal(10, 2)
+  platformCommission Decimal          @db.Decimal(10, 2)
+  status             SettlementStatus @default(PENDING)
+  createdAt          DateTime         @default(now())
+  settledAt          DateTime?
+  school             DrivingSchool    @relation(fields: [schoolId], references: [id])
+  payment            Payment?         @relation(fields: [paymentId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  title     String
+  body      String
+  channel   String   @default("IN_APP")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+}

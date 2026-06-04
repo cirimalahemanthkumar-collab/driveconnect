@@ -1,0 +1,1 @@
+ALTER TYPE "SchoolVerificationStatus" ADD VALUE IF NOT EXISTS 'APPROVED';

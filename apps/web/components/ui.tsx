@@ -1,15 +1,6 @@
 import Link from "next/link";
-type BookingStatus = string;
-type SchoolVerificationStatus = string;
+import { toReadableStatus, trustBadges, type BookingStatus, type SchoolVerificationStatus } from "@driveconnect/shared";
 
-function toReadableStatus(status: string | null | undefined) {
-  return String(status || "")
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-const trustBadges: any[] = [];
 type ButtonProps = {
   children: React.ReactNode;
   href?: string;
@@ -102,11 +93,11 @@ export function Modal({ title, children, open = false }: { title: string; childr
 export function StatusBadge({ status }: { status: BookingStatus | SchoolVerificationStatus | string }) {
   const statusText = String(status);
   const tone =
-    statusText.includes("VERIFIED") || statusText.includes("SUCCESS") || statusText.includes("COMPLETED")
+    statusText.includes("APPROVED") || statusText.includes("VERIFIED") || statusText.includes("SUCCESS") || statusText.includes("COMPLETED")
       ? "green"
       : statusText.includes("PENDING") || statusText.includes("WAITING") || statusText.includes("REVIEW")
         ? "amber"
-        : statusText.includes("REJECTED") || statusText.includes("CANCELLED")
+        : statusText.includes("REJECTED") || statusText.includes("SUSPENDED") || statusText.includes("CANCELLED")
           ? "red"
           : "blue";
 
