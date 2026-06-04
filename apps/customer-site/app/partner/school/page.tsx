@@ -5,7 +5,6 @@ import { Button, Card, Input, StatusBadge } from "@/components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../../../lib/api";
 import { API_ENDPOINTS } from "../../../lib/endpoints";
-import { asRecord, text } from "../../../lib/records";
 import {
   ErrorBanner,
   Field,
@@ -45,7 +44,7 @@ const API_BASE =
 
 export default function PartnerSchoolPage() {
   const resource = useApiResource<unknown>(API_ENDPOINTS.partner.school, {});
-  const rawRecord = asRecord(resource.data);
+  const rawRecord = toRecord(resource.data);
   const school = getSchoolRecord(rawRecord);
 
   const [form, setForm] = useState<SchoolForm>(emptyForm);
@@ -58,31 +57,33 @@ export default function PartnerSchoolPage() {
 
   const schoolName =
     getValue(school, "school_name") ||
+    getValue(school, "schoolName") ||
     getValue(school, "name") ||
     form.school_name;
 
   const hasSavedSchool = Boolean(
     getValue(school, "id") ||
       getValue(school, "school_id") ||
+      getValue(school, "schoolId") ||
       schoolName ||
       getValue(school, "phone") ||
       getValue(school, "email")
   );
 
   const schoolStatus = useMemo(() => {
-    if (localPendingReview) return "PENDING";
+    if (marketplaceApproved) return "APPROVED";
 
     const directStatus =
+      getValue(school, "status") ||
       getValue(school, "verification_status") ||
       getValue(school, "verificationStatus") ||
-      getValue(school, "status") ||
+      getValue(rawRecord, "status") ||
       getValue(rawRecord, "verification_status") ||
-      getValue(rawRecord, "verificationStatus") ||
-      getValue(rawRecord, "status");
+      getValue(rawRecord, "verificationStatus");
 
     if (directStatus) return normalizeStatus(directStatus);
 
-    if (marketplaceApproved) return "APPROVED";
+    if (localPendingReview) return "PENDING";
 
     if (hasSavedSchool) return "PENDING";
 
@@ -97,7 +98,10 @@ export default function PartnerSchoolPage() {
 
   useEffect(() => {
     setForm({
-      school_name: getValue(school, "school_name") || getValue(school, "name"),
+      school_name:
+        getValue(school, "school_name") ||
+        getValue(school, "schoolName") ||
+        getValue(school, "name"),
       description: getValue(school, "description"),
       phone: getValue(school, "phone"),
       email: getValue(school, "email"),
@@ -110,10 +114,10 @@ export default function PartnerSchoolPage() {
   }, [resource.data]);
 
   useEffect(() => {
-    if (!hasSavedSchool) {
+    if (!resource.loading && !hasSavedSchool) {
       setEditing(true);
     }
-  }, [hasSavedSchool]);
+  }, [hasSavedSchool, resource.loading]);
 
   useEffect(() => {
     void checkMarketplaceApproval();
@@ -128,16 +132,21 @@ export default function PartnerSchoolPage() {
   }
 
   async function checkMarketplaceApproval() {
+    const currentId =
+      getValue(school, "id") ||
+      getValue(school, "school_id") ||
+      getValue(school, "schoolId");
+
     const currentName =
       getValue(school, "school_name") ||
+      getValue(school, "schoolName") ||
       getValue(school, "name") ||
       form.school_name;
 
     const currentPhone = getValue(school, "phone") || form.phone;
     const currentEmail = getValue(school, "email") || form.email;
-    const currentId = getValue(school, "id") || getValue(school, "school_id");
 
-    if (!currentName && !currentPhone && !currentEmail && !currentId) {
+    if (!currentId && !currentName && !currentPhone && !currentEmail) {
       setMarketplaceApproved(false);
       return;
     }
@@ -148,6 +157,7 @@ export default function PartnerSchoolPage() {
       });
 
       const payload = await response.json();
+
       const schools = Array.isArray(payload?.schools)
         ? payload.schools
         : Array.isArray(payload?.data)
@@ -155,26 +165,43 @@ export default function PartnerSchoolPage() {
           : [];
 
       const found = schools.some((item: unknown) => {
-        const record = asRecord(item);
+        const record = toRecord(item);
 
-        const itemId = getValue(record, "id") || getValue(record, "school_id");
+        const itemId =
+          getValue(record, "id") ||
+          getValue(record, "school_id") ||
+          getValue(record, "schoolId");
+
         const itemName =
-          getValue(record, "school_name") || getValue(record, "name");
+          getValue(record, "school_name") ||
+          getValue(record, "schoolName") ||
+          getValue(record, "name");
+
         const itemPhone = getValue(record, "phone");
         const itemEmail = getValue(record, "email");
 
         return (
-          (currentId && itemId && currentId === itemId) ||
-          (currentPhone && itemPhone && currentPhone === itemPhone) ||
-          (currentEmail && itemEmail && currentEmail.toLowerCase() === currentEmail.toLowerCase()) ||
-          (currentName && itemName && currentName.toLowerCase() === itemName.toLowerCase())
+          sameText(currentId, itemId) ||
+          sameText(currentPhone, itemPhone) ||
+          sameText(currentEmail, itemEmail) ||
+          sameText(currentName, itemName)
         );
       });
 
       setMarketplaceApproved(found);
+
+      if (found) {
+        setLocalPendingReview(false);
+      }
     } catch {
       setMarketplaceApproved(false);
     }
+  }
+
+  async function refreshStatus() {
+    setLocalPendingReview(false);
+    await resource.reload();
+    await checkMarketplaceApproval();
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -196,8 +223,6 @@ export default function PartnerSchoolPage() {
         pincode: form.pincode.trim(),
         service_radius_km: Number(form.service_radius_km || 10),
 
-        // This requests re-review after edit.
-        // Backend should enforce this also.
         status: "PENDING",
         verification_status: "PENDING",
       };
@@ -207,7 +232,10 @@ export default function PartnerSchoolPage() {
         return;
       }
 
-      const schoolId = getValue(school, "id") || getValue(school, "school_id");
+      const schoolId =
+        getValue(school, "id") ||
+        getValue(school, "school_id") ||
+        getValue(school, "schoolId");
 
       try {
         await apiRequest({
@@ -227,6 +255,7 @@ export default function PartnerSchoolPage() {
       setMarketplaceApproved(false);
       setEditing(false);
       setSuccessMessage("School profile submitted for admin review.");
+
       await resource.reload();
     } catch (requestError) {
       setFormError(getApiErrorMessage(requestError, "Unable to save school profile."));
@@ -273,14 +302,17 @@ export default function PartnerSchoolPage() {
                   <span className="font-bold text-slate-950">Phone:</span>{" "}
                   {form.phone || "-"}
                 </p>
+
                 <p>
                   <span className="font-bold text-slate-950">Email:</span>{" "}
                   {form.email || "-"}
                 </p>
+
                 <p className="md:col-span-2">
                   <span className="font-bold text-slate-950">Address:</span>{" "}
                   {form.address || "-"}
                 </p>
+
                 <p className="md:col-span-2">
                   <span className="font-bold text-slate-950">Description:</span>{" "}
                   {form.description || "-"}
@@ -321,19 +353,18 @@ export default function PartnerSchoolPage() {
             </p>
           ) : null}
 
+          {successMessage ? (
+            <div className="mt-5 rounded-lg bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+              {successMessage}
+            </div>
+          ) : null}
+
           <div className="mt-6 flex flex-wrap gap-3">
             <Button type="button" onClick={() => setEditing(true)}>
               Edit profile
             </Button>
 
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                void resource.reload();
-                void checkMarketplaceApproval();
-              }}
-            >
+            <Button type="button" variant="secondary" onClick={() => void refreshStatus()}>
               Refresh status
             </Button>
           </div>
@@ -347,8 +378,9 @@ export default function PartnerSchoolPage() {
               <h3 className="text-2xl font-black text-slate-950">
                 {hasSavedSchool ? "Edit school profile" : "Create school profile"}
               </h3>
+
               <p className="mt-2 text-sm text-slate-600">
-                After saving changes, admin may need to review and approve the profile again.
+                After saving changes, admin must review and approve the profile again.
               </p>
             </div>
 
@@ -426,12 +458,6 @@ export default function PartnerSchoolPage() {
               </Field>
             </div>
 
-            {successMessage ? (
-              <div className="rounded-lg bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
-                {successMessage}
-              </div>
-            ) : null}
-
             <FormError message={formError} />
 
             <div className="flex flex-wrap gap-3">
@@ -453,23 +479,35 @@ export default function PartnerSchoolPage() {
 }
 
 function getSchoolRecord(record: Record<string, unknown>) {
-  const nested =
-    asRecord(record.school) ||
-    asRecord(record.data) ||
-    asRecord(record.profile) ||
-    record;
+  const school = toRecord(record.school);
+  const data = toRecord(record.data);
+  const profile = toRecord(record.profile);
 
-  return nested;
+  if (Object.keys(school).length > 0) return school;
+  if (Object.keys(data).length > 0) return data;
+  if (Object.keys(profile).length > 0) return profile;
+
+  return record;
 }
 
 function getValue(record: Record<string, unknown>, key: string) {
-  const value = text(record, key);
+  const value = record[key];
 
-  if (!value || value === "-") {
-    return "";
+  if (value === null || value === undefined) return "";
+
+  const result = String(value).trim();
+
+  if (!result || result === "-") return "";
+
+  return result;
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object") {
+    return value as Record<string, unknown>;
   }
 
-  return value;
+  return {};
 }
 
 function normalizeStatus(status: string) {
@@ -479,8 +517,15 @@ function normalizeStatus(status: string) {
   if (cleaned === "REJECTED") return "REJECTED";
   if (cleaned === "SUSPENDED") return "SUSPENDED";
   if (cleaned === "PENDING_REVIEW") return "PENDING_REVIEW";
+  if (cleaned === "UNDER_REVIEW") return "PENDING";
   if (cleaned === "PENDING") return "PENDING";
   if (cleaned === "NOT_SUBMITTED") return "NOT_SUBMITTED";
 
   return cleaned;
+}
+
+function sameText(left: string, right: string) {
+  if (!left || !right) return false;
+
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
