@@ -50,6 +50,9 @@ export default function PartnerSchoolPage() {
   const [successMessage, setSuccessMessage] = useState("");
 
   const school = asRecord(resource.data);
+  const schoolName = getValue(school, "school_name") || getValue(school, "name") || form.school_name;
+  const schoolStatus = getSchoolStatus(school, schoolName);
+  const rejectionReason = getValue(school, "rejection_reason");
 
   useEffect(() => {
     setForm({
@@ -118,7 +121,7 @@ export default function PartnerSchoolPage() {
       }
 
       await resource.reload();
-      setSuccessMessage("School profile saved successfully. Waiting for admin approval.");
+      setSuccessMessage("School profile saved successfully. Waiting for admin review.");
     } catch (requestError) {
       setFormError(getApiErrorMessage(requestError, "Unable to save school profile."));
     } finally {
@@ -136,11 +139,61 @@ export default function PartnerSchoolPage() {
         eyebrow="Partner profile"
         title="School profile"
         description="Keep marketplace information accurate so customers know what to expect."
-        action={<StatusBadge status={text(school, "verificationStatus", "status")} />}
+        action={<StatusBadge status={schoolStatus} />}
       />
 
       {resource.error ? (
         <ErrorBanner message={resource.error} retry={() => void resource.reload()} />
+      ) : null}
+
+      {schoolName ? (
+        <Card className="mt-6 border border-blue-100 bg-gradient-to-r from-blue-50 to-emerald-50">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-wide text-blue-700">
+                Saved school profile
+              </p>
+              <h2 className="mt-2 text-3xl font-black text-slate-950">
+                {schoolName}
+              </h2>
+              <p className="mt-2 text-slate-600">
+                {[form.city, form.state].filter(Boolean).join(", ") || "Location not added"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <p className="text-sm font-bold text-slate-500">Admin status</p>
+              <div className="mt-2">
+                <StatusBadge status={schoolStatus} />
+              </div>
+            </div>
+          </div>
+
+          {schoolStatus === "APPROVED" ? (
+            <p className="mt-4 rounded-lg bg-green-100 px-4 py-3 text-sm font-semibold text-green-800">
+              Your school is approved and can appear in the marketplace.
+            </p>
+          ) : null}
+
+          {schoolStatus === "PENDING" || schoolStatus === "PENDING_REVIEW" ? (
+            <p className="mt-4 rounded-lg bg-yellow-100 px-4 py-3 text-sm font-semibold text-yellow-800">
+              Your profile is submitted. Admin approval is pending.
+            </p>
+          ) : null}
+
+          {schoolStatus === "REJECTED" ? (
+            <p className="mt-4 rounded-lg bg-red-100 px-4 py-3 text-sm font-semibold text-red-800">
+              Your school was rejected by admin.
+              {rejectionReason ? ` Reason: ${rejectionReason}` : ""}
+            </p>
+          ) : null}
+
+          {schoolStatus === "SUSPENDED" ? (
+            <p className="mt-4 rounded-lg bg-red-100 px-4 py-3 text-sm font-semibold text-red-800">
+              Your school is currently suspended. Contact admin/support.
+            </p>
+          ) : null}
+        </Card>
       ) : null}
 
       <Card className="mt-6">
@@ -269,4 +322,21 @@ function getValue(record: Record<string, unknown>, key: string) {
   }
 
   return value;
+}
+
+function getSchoolStatus(record: Record<string, unknown>, schoolName: string) {
+  const status =
+    getValue(record, "verification_status") ||
+    getValue(record, "verificationStatus") ||
+    getValue(record, "status");
+
+  if (status) {
+    return status.toUpperCase();
+  }
+
+  if (schoolName) {
+    return "PENDING";
+  }
+
+  return "NOT_SUBMITTED";
 }
