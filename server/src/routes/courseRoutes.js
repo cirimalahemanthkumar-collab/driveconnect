@@ -14,28 +14,28 @@ const router = express.Router();
 router.get(
   "/",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   getMyCourses
 );
 
 router.post(
   "/",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   createCourse
 );
 
 router.put(
   "/:courseId",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   updateCourse
 );
 
 router.patch(
   "/:courseId/status",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   updateCourseStatus
 );
 

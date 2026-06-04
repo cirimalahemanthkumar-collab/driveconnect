@@ -1,5 +1,9 @@
 const pool = require("../db");
 
+const allowedVehicleTypes = ["TWO_WHEELER", "FOUR_WHEELER", "BOTH", "CAR", "HEAVY_VEHICLE"];
+const allowedTransmissions = ["MANUAL", "AUTOMATIC", "BOTH"];
+const allowedCourseTypes = ["BEGINNER", "ADVANCED", "REFRESHER", "TEST_PREP"];
+
 async function getApprovedSchoolByOwner(userId) {
   const result = await pool.query(
     `SELECT *
@@ -56,11 +60,13 @@ const createCourse = async (req, res) => {
     const {
       course_name,
       description,
+      course_type,
       vehicle_type,
       transmission,
       duration_days,
       total_sessions,
       price,
+      advance_amount,
       discount_price,
       platform_commission_percent,
     } = req.body;
@@ -80,9 +86,6 @@ const createCourse = async (req, res) => {
       });
     }
 
-    const allowedVehicleTypes = ["TWO_WHEELER", "CAR", "HEAVY_VEHICLE"];
-    const allowedTransmissions = ["MANUAL", "AUTOMATIC"];
-
     if (!allowedVehicleTypes.includes(vehicle_type)) {
       return res.status(400).json({
         success: false,
@@ -94,6 +97,13 @@ const createCourse = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invalid transmission type",
+      });
+    }
+
+    if (course_type && !allowedCourseTypes.includes(course_type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course type",
       });
     }
 
@@ -119,27 +129,31 @@ const createCourse = async (req, res) => {
         school_id,
         course_name,
         description,
+        course_type,
         vehicle_type,
         transmission,
         duration_days,
         total_sessions,
         price,
+        advance_amount,
         discount_price,
         platform_commission_percent,
         is_active
        )
        VALUES
-       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true)
        RETURNING *`,
       [
         school.id,
         course_name,
         description,
+        course_type || null,
         vehicle_type,
         transmission,
         duration_days,
         total_sessions,
         price,
+        advance_amount || 0,
         discount_price || null,
         platform_commission_percent || 10,
       ]
@@ -167,14 +181,52 @@ const updateCourse = async (req, res) => {
     const {
       course_name,
       description,
+      course_type,
       vehicle_type,
       transmission,
       duration_days,
       total_sessions,
       price,
+      advance_amount,
       discount_price,
       platform_commission_percent,
     } = req.body;
+
+    if (
+      !course_name ||
+      !vehicle_type ||
+      !transmission ||
+      !duration_days ||
+      !total_sessions ||
+      !price
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Course name, vehicle type, transmission, duration days, total sessions, and price are required",
+      });
+    }
+
+    if (!allowedVehicleTypes.includes(vehicle_type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid vehicle type",
+      });
+    }
+
+    if (!allowedTransmissions.includes(transmission)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid transmission type",
+      });
+    }
+
+    if (course_type && !allowedCourseTypes.includes(course_type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid course type",
+      });
+    }
 
     const school = await getApprovedSchoolByOwner(req.user.id);
 
@@ -204,24 +256,28 @@ const updateCourse = async (req, res) => {
        SET
         course_name = $1,
         description = $2,
-        vehicle_type = $3,
-        transmission = $4,
-        duration_days = $5,
-        total_sessions = $6,
-        price = $7,
-        discount_price = $8,
-        platform_commission_percent = $9,
+        course_type = $3,
+        vehicle_type = $4,
+        transmission = $5,
+        duration_days = $6,
+        total_sessions = $7,
+        price = $8,
+        advance_amount = $9,
+        discount_price = $10,
+        platform_commission_percent = $11,
         updated_at = NOW()
-       WHERE id = $10 AND school_id = $11
+       WHERE id = $12 AND school_id = $13
        RETURNING *`,
       [
         course_name,
         description,
+        course_type || null,
         vehicle_type,
         transmission,
         duration_days,
         total_sessions,
         price,
+        advance_amount || 0,
         discount_price || null,
         platform_commission_percent || 10,
         courseId,
@@ -248,6 +304,13 @@ const updateCourseStatus = async (req, res) => {
   try {
     const { courseId } = req.params;
     const { is_active } = req.body;
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "Course active status is required",
+      });
+    }
 
     const school = await getApprovedSchoolByOwner(req.user.id);
 
