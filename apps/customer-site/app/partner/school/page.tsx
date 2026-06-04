@@ -47,15 +47,13 @@ export default function PartnerSchoolPage() {
   const [form, setForm] = useState<SchoolForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const school = asRecord(resource.data);
 
   useEffect(() => {
     setForm({
-      school_name:
-        getValue(school, "school_name") ||
-        getValue(school, "name") ||
-        "",
+      school_name: getValue(school, "school_name") || getValue(school, "name") || "",
       description: getValue(school, "description"),
       phone: getValue(school, "phone"),
       email: getValue(school, "email"),
@@ -80,10 +78,12 @@ export default function PartnerSchoolPage() {
     event.preventDefault();
     setSaving(true);
     setFormError("");
+    setSuccessMessage("");
 
     try {
       const payload = {
         school_name: form.school_name.trim(),
+        name: form.school_name.trim(),
         description: form.description.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim(),
@@ -96,15 +96,31 @@ export default function PartnerSchoolPage() {
         service_radius_km: Number(form.service_radius_km || 10),
       };
 
-      await apiRequest({
-        url: API_ENDPOINTS.partner.school,
-        method: "PUT",
-        data: payload,
-      });
+      if (!payload.school_name || !payload.address || !payload.city || !payload.state) {
+        setFormError("School name, address, city, and state are required.");
+        return;
+      }
+
+      const schoolId = getValue(school, "id");
+
+      try {
+        await apiRequest({
+          url: API_ENDPOINTS.partner.school,
+          method: schoolId ? "PUT" : "POST",
+          data: payload,
+        });
+      } catch {
+        await apiRequest({
+          url: API_ENDPOINTS.partner.school,
+          method: schoolId ? "POST" : "PUT",
+          data: payload,
+        });
+      }
 
       await resource.reload();
+      setSuccessMessage("School profile saved successfully. Waiting for admin approval.");
     } catch (requestError) {
-      setFormError(getApiErrorMessage(requestError));
+      setFormError(getApiErrorMessage(requestError, "Unable to save school profile."));
     } finally {
       setSaving(false);
     }
@@ -134,6 +150,7 @@ export default function PartnerSchoolPage() {
               <Input
                 value={form.school_name}
                 onChange={(event) => update("school_name", event.target.value)}
+                placeholder="Yug Drives"
                 required
               />
             </Field>
@@ -142,6 +159,7 @@ export default function PartnerSchoolPage() {
               <Input
                 value={form.phone}
                 onChange={(event) => update("phone", event.target.value)}
+                placeholder="8328246457"
                 required
               />
             </Field>
@@ -151,6 +169,7 @@ export default function PartnerSchoolPage() {
                 value={form.email}
                 onChange={(event) => update("email", event.target.value)}
                 type="email"
+                placeholder="school@gmail.com"
               />
             </Field>
 
@@ -158,6 +177,7 @@ export default function PartnerSchoolPage() {
               <Input
                 value={form.city}
                 onChange={(event) => update("city", event.target.value)}
+                placeholder="Kurnool"
                 required
               />
             </Field>
@@ -175,7 +195,7 @@ export default function PartnerSchoolPage() {
               <Input
                 value={form.pincode}
                 onChange={(event) => update("pincode", event.target.value)}
-                placeholder="515001"
+                placeholder="518001"
               />
             </Field>
 
@@ -201,6 +221,7 @@ export default function PartnerSchoolPage() {
                 onChange={(event) => update("service_radius_km", event.target.value)}
                 type="number"
                 min="1"
+                placeholder="10"
               />
             </Field>
 
@@ -208,6 +229,7 @@ export default function PartnerSchoolPage() {
               <Input
                 value={form.address}
                 onChange={(event) => update("address", event.target.value)}
+                placeholder="Beside taluka police station, Dinnedevarapadu"
                 required
               />
             </Field>
@@ -217,9 +239,16 @@ export default function PartnerSchoolPage() {
                 className="focus-ring min-h-28 w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
                 value={form.description}
                 onChange={(event) => update("description", event.target.value)}
+                placeholder="Brief description about your driving school"
               />
             </Field>
           </div>
+
+          {successMessage ? (
+            <div className="rounded-lg bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
+              {successMessage}
+            </div>
+          ) : null}
 
           <FormError message={formError} />
 
