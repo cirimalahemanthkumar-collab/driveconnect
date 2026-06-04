@@ -25,8 +25,14 @@ export default function RegisterPage() {
     setSubmitting(true);
     setError("");
     try {
-      await register({ ...form, role, schoolName: role === "SCHOOL_OWNER" ? form.schoolName : undefined });
-    } catch (requestError) {
+await register({
+  full_name: form.name.trim(),
+  email: form.email.trim().toLowerCase(),
+  phone: form.phone.trim(),
+  password: form.password,
+  role,
+  school_name: role === "SCHOOL_OWNER" ? form.schoolName.trim() : undefined
+} as any);    } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create the account."));
     } finally {
       setSubmitting(false);
