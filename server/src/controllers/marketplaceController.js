@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { serializeSchool } = require("../utils/schoolVerification");
 
 const getApprovedSchools = async (req, res) => {
   try {
@@ -6,24 +7,11 @@ const getApprovedSchools = async (req, res) => {
 
     let query = `
       SELECT DISTINCT
-        ds.id,
-        ds.school_name,
-        ds.description,
-        ds.email,
-        ds.phone,
-        ds.address,
-        ds.city,
-        ds.state,
-        ds.pincode,
-        ds.latitude,
-        ds.longitude,
-        ds.service_radius_km,
-        ds.average_rating,
-        ds.total_reviews,
-        ds.created_at
+        ds.*
       FROM driving_schools ds
       LEFT JOIN courses c ON c.school_id = ds.id
-      WHERE ds.status = 'APPROVED'
+      WHERE ds.status::text = 'APPROVED'
+      AND ds.verification_status::text = 'APPROVED'
     `;
 
     const values = [];
@@ -57,14 +45,15 @@ const getApprovedSchools = async (req, res) => {
       count++;
     }
 
-    query += ` ORDER BY ds.created_at DESC`;
+    query += ` ORDER BY ds.average_rating DESC, ds.created_at DESC`;
 
     const result = await pool.query(query, values);
+    const schools = result.rows.map(serializeSchool);
 
     return res.json({
       success: true,
-      count: result.rows.length,
-      schools: result.rows,
+      count: schools.length,
+      schools,
     });
   } catch (error) {
     console.error("Get approved schools error:", error);
@@ -82,23 +71,11 @@ const getSchoolDetails = async (req, res) => {
 
     const schoolResult = await pool.query(
       `SELECT
-        id,
-        school_name,
-        description,
-        email,
-        phone,
-        address,
-        city,
-        state,
-        pincode,
-        latitude,
-        longitude,
-        service_radius_km,
-        average_rating,
-        total_reviews,
-        created_at
+        *
        FROM driving_schools
-       WHERE id = $1 AND status = 'APPROVED'`,
+       WHERE id = $1
+       AND status::text = 'APPROVED'
+       AND verification_status::text = 'APPROVED'`,
       [schoolId]
     );
 
@@ -117,9 +94,12 @@ const getSchoolDetails = async (req, res) => {
       [schoolId]
     );
 
+    const school = serializeSchool(schoolResult.rows[0]);
+
     return res.json({
       success: true,
-      school: schoolResult.rows[0],
+      school,
+      ...school,
       courses: coursesResult.rows,
     });
   } catch (error) {
@@ -147,7 +127,8 @@ const getAvailableCourses = async (req, res) => {
         ds.total_reviews
       FROM courses c
       JOIN driving_schools ds ON c.school_id = ds.id
-      WHERE ds.status = 'APPROVED'
+      WHERE ds.status::text = 'APPROVED'
+      AND ds.verification_status::text = 'APPROVED'
       AND c.is_active = true
     `;
 
@@ -214,7 +195,8 @@ const getCourseDetails = async (req, res) => {
        JOIN driving_schools ds ON c.school_id = ds.id
        WHERE c.id = $1
        AND c.is_active = true
-       AND ds.status = 'APPROVED'`,
+       AND ds.status::text = 'APPROVED'
+       AND ds.verification_status::text = 'APPROVED'`,
       [courseId]
     );
 
