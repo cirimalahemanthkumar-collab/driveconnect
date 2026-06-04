@@ -127,6 +127,14 @@ const updateSchoolStatus = async (req, res) => {
       });
     }
 
+    const rejectionReason =
+      reviewStatus === "REJECTED"
+        ? cleanOptionalText(rejection_reason || admin_notes) || "Rejected by admin"
+        : null;
+
+    const adminNotes = cleanOptionalText(admin_notes) || null;
+    const adminUserId = req.user?.id || null;
+
     await client.query("BEGIN");
 
     const oldSchoolResult = await client.query(
@@ -148,22 +156,21 @@ const updateSchoolStatus = async (req, res) => {
     const updateResult = await client.query(
       `UPDATE driving_schools
        SET 
-        status = $1,
-        verification_status = $1,
-        rejection_reason = $2,
-        admin_notes = $3,
+        status = $1::school_status,
+        verification_status = $2::text,
+        rejection_reason = $3,
+        admin_notes = $4,
         verification_reviewed_at = NOW(),
-        verification_reviewed_by = $4,
+        verification_reviewed_by = $5,
         updated_at = NOW()
-       WHERE id = $5
+       WHERE id = $6
        RETURNING *`,
       [
         reviewStatus,
-        reviewStatus === "REJECTED"
-          ? cleanOptionalText(rejection_reason || admin_notes) || "Rejected by admin"
-          : null,
-        admin_notes || null,
-        req.user.id,
+        reviewStatus,
+        rejectionReason,
+        adminNotes,
+        adminUserId,
         schoolId,
       ]
     );
@@ -174,16 +181,15 @@ const updateSchoolStatus = async (req, res) => {
       await client.query(
         `UPDATE school_documents
          SET status = $1,
-             rejection_reason = CASE WHEN $1 = 'REJECTED' THEN $2 ELSE NULL END,
-             reviewed_by_admin_id = $3,
+             rejection_reason = CASE WHEN $2 = 'REJECTED' THEN $3 ELSE NULL END,
+             reviewed_by_admin_id = $4,
              reviewed_at = NOW()
-         WHERE school_id = $4`,
+         WHERE school_id = $5`,
         [
           reviewStatus,
-          reviewStatus === "REJECTED"
-            ? cleanOptionalText(rejection_reason || admin_notes) || "Rejected by admin"
-            : null,
-          req.user.id,
+          reviewStatus,
+          rejectionReason,
+          adminUserId,
           schoolId,
         ]
       );
@@ -196,7 +202,7 @@ const updateSchoolStatus = async (req, res) => {
       [
         updatedSchool.owner_user_id,
         "Driving School Status Updated",
-        `Your driving school "${updatedSchool.school_name}" status is now ${reviewStatus}.`,
+        `Your driving school "${updatedSchool.school_name || updatedSchool.name || "School"}" status is now ${reviewStatus}.`,
         "SCHOOL_STATUS",
       ]
     );
@@ -213,7 +219,7 @@ const updateSchoolStatus = async (req, res) => {
        )
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        req.user.id,
+        adminUserId,
         "UPDATE_SCHOOL_STATUS",
         "driving_schools",
         schoolId,
