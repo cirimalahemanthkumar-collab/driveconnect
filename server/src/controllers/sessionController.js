@@ -295,13 +295,29 @@ const getCustomerSessions = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        cs.*,
-        c.course_name,
+        cs.id,
+        cs.booking_id,
+        cs.booking_id AS "bookingId",
         ds.school_name,
+        ds.school_name AS "schoolName",
+        c.course_name,
+        c.course_name AS "courseName",
+        c.vehicle_type,
+        c.vehicle_type AS "vehicleType",
+        c.transmission,
+        cs.session_date,
+        cs.session_date AS "sessionDate",
+        cs.start_time AS session_time,
+        cs.start_time AS "sessionTime",
+        cs.status,
+        cs.created_at,
+        cs.created_at AS "createdAt",
         ds.phone AS school_phone,
         i.full_name AS instructor_name,
+        i.full_name AS "instructorName",
         i.phone AS instructor_phone,
         v.vehicle_number,
+        v.vehicle_number AS "vehicleNumber",
         v.vehicle_model
        FROM class_sessions cs
        JOIN bookings b ON cs.booking_id = b.id
@@ -314,12 +330,36 @@ const getCustomerSessions = async (req, res) => {
       [req.user.id]
     );
 
+    if (result.rows.length === 0) {
+      const derivedSessions = await getDerivedCustomerSessions(req.user.id);
+
+      return res.json({
+        success: true,
+        count: derivedSessions.length,
+        sessions: derivedSessions,
+      });
+    }
+
     return res.json({
       success: true,
       count: result.rows.length,
       sessions: result.rows,
     });
   } catch (error) {
+    if (error.code === "42P01") {
+      try {
+        const derivedSessions = await getDerivedCustomerSessions(req.user.id);
+
+        return res.json({
+          success: true,
+          count: derivedSessions.length,
+          sessions: derivedSessions,
+        });
+      } catch (fallbackError) {
+        console.error("Get derived customer sessions error:", fallbackError);
+      }
+    }
+
     console.error("Get customer sessions error:", error);
 
     return res.status(500).json({
@@ -328,6 +368,42 @@ const getCustomerSessions = async (req, res) => {
     });
   }
 };
+
+async function getDerivedCustomerSessions(customerUserId) {
+  const result = await pool.query(
+    `SELECT
+      b.id || '-derived-session' AS id,
+      b.id AS booking_id,
+      b.id AS "bookingId",
+      ds.school_name,
+      ds.school_name AS "schoolName",
+      c.course_name,
+      c.course_name AS "courseName",
+      c.vehicle_type,
+      c.vehicle_type AS "vehicleType",
+      c.transmission,
+      b.preferred_start_date AS session_date,
+      b.preferred_start_date AS "sessionDate",
+      NULL::text AS session_time,
+      NULL::text AS "sessionTime",
+      b.booking_status AS status,
+      NULL::text AS instructor_name,
+      NULL::text AS "instructorName",
+      NULL::text AS vehicle_number,
+      NULL::text AS "vehicleNumber",
+      b.created_at,
+      b.created_at AS "createdAt"
+     FROM bookings b
+     JOIN courses c ON b.course_id = c.id
+     JOIN driving_schools ds ON b.school_id = ds.id
+     WHERE b.customer_user_id = $1
+     AND UPPER(b.booking_status::text) IN ('ACCEPTED', 'CONFIRMED', 'ONGOING', 'COMPLETED')
+     ORDER BY b.preferred_start_date ASC NULLS LAST, b.created_at DESC`,
+    [customerUserId]
+  );
+
+  return result.rows;
+}
 
 const updateSessionStatus = async (req, res) => {
   const client = await pool.connect();

@@ -22,7 +22,7 @@ const createComplaint = async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const { school_id, booking_id, subject, description } = req.body;
+    const { school_id, booking_id, subject, description, category } = req.body;
 
     if (!subject || !description) {
       return res.status(400).json({
@@ -110,7 +110,11 @@ const createComplaint = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Complaint created successfully",
-      complaint,
+      complaint: {
+        ...complaint,
+        complaint_id: complaint.id,
+        category: category || null,
+      },
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -131,8 +135,23 @@ const getMyComplaints = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        comp.*,
+        comp.id,
+        comp.id AS complaint_id,
+        comp.id AS "complaintId",
+        comp.booking_id,
+        comp.booking_id AS "bookingId",
+        comp.subject,
+        comp.description,
+        NULL::text AS category,
+        comp.status,
+        comp.admin_response,
+        comp.admin_response AS "adminResponse",
+        comp.created_at,
+        comp.created_at AS "createdAt",
+        comp.updated_at,
+        comp.updated_at AS "updatedAt",
         ds.school_name,
+        ds.school_name AS "schoolName",
         b.booking_status
        FROM complaints comp
        LEFT JOIN driving_schools ds ON comp.school_id = ds.id

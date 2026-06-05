@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, StatusBadge } from "@/components/ui";
+import { Button, StatusBadge } from "./ui";
 import { useApiResource } from "../hooks/use-api-resource";
 import { asList, dateText, money, text, type ApiRecord } from "../lib/records";
 import { ErrorBanner, LoadingState, PageIntro, TableCard } from "./portal-ui";
@@ -62,4 +62,3 @@ function Cell({ record, column }: { record: ApiRecord; column: Column }) {
   if (column.format === "date") return <span>{dateText(value)}</span>;
   return <span>{value}</span>;
 }
-

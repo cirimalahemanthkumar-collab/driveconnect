@@ -130,9 +130,21 @@ const getMyReviews = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        r.*,
+        r.id,
+        r.id AS review_id,
+        r.id AS "reviewId",
+        r.booking_id,
+        r.booking_id AS "bookingId",
+        r.school_id,
+        r.customer_user_id,
+        r.rating,
+        r.comment,
+        r.created_at,
+        r.created_at AS "createdAt",
         ds.school_name,
-        c.course_name
+        ds.school_name AS "schoolName",
+        c.course_name,
+        c.course_name AS "courseName"
        FROM reviews r
        JOIN bookings b ON r.booking_id = b.id
        JOIN courses c ON b.course_id = c.id

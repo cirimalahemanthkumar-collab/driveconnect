@@ -273,16 +273,58 @@ const getMyPayments = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        po.*,
-        b.booking_status,
+        COALESCE(po.id, b.id) AS id,
+        po.id AS payment_id,
+        po.id AS "paymentId",
+        b.id AS booking_id,
+        b.id AS "bookingId",
+        ds.school_name,
+        ds.school_name AS "schoolName",
         c.course_name,
-        ds.school_name
-       FROM payment_orders po
-       JOIN bookings b ON po.booking_id = b.id
+        c.course_name AS "courseName",
+        COALESCE(po.amount, b.total_amount, c.discount_price, c.price, 0) AS amount,
+        COALESCE(c.advance_amount, 0) AS advance_amount,
+        COALESCE(c.advance_amount, 0) AS "advanceAmount",
+        COALESCE(po.status, CASE
+          WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+          ELSE 'UNPAID'
+        END) AS payment_status,
+        COALESCE(po.status, CASE
+          WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+          ELSE 'UNPAID'
+        END) AS "paymentStatus",
+        COALESCE(po.status, CASE
+          WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+          ELSE 'UNPAID'
+        END) AS status,
+        COALESCE(pt.payment_method, po.gateway_name) AS payment_method,
+        COALESCE(pt.payment_method, po.gateway_name) AS "paymentMethod",
+        COALESCE(pt.gateway_payment_id, po.gateway_order_id, b.id) AS transaction_reference,
+        COALESCE(pt.gateway_payment_id, po.gateway_order_id, b.id) AS "transactionReference",
+        COALESCE(po.created_at, b.created_at) AS created_at,
+        COALESCE(po.created_at, b.created_at) AS "createdAt",
+        b.booking_status,
+        b.booking_status AS "bookingStatus"
+       FROM bookings b
        JOIN courses c ON b.course_id = c.id
        JOIN driving_schools ds ON b.school_id = ds.id
-       WHERE po.customer_user_id = $1
-       ORDER BY po.created_at DESC`,
+       LEFT JOIN LATERAL (
+        SELECT *
+        FROM payment_orders payment_order
+        WHERE payment_order.booking_id = b.id
+        AND payment_order.customer_user_id = $1
+        ORDER BY payment_order.created_at DESC
+        LIMIT 1
+       ) po ON true
+       LEFT JOIN LATERAL (
+        SELECT *
+        FROM payment_transactions payment_transaction
+        WHERE payment_transaction.payment_order_id = po.id
+        ORDER BY payment_transaction.paid_at DESC NULLS LAST
+        LIMIT 1
+       ) pt ON true
+       WHERE b.customer_user_id = $1
+       ORDER BY COALESCE(po.created_at, b.created_at) DESC`,
       [req.user.id]
     );
 
@@ -292,6 +334,20 @@ const getMyPayments = async (req, res) => {
       payments: result.rows,
     });
   } catch (error) {
+    if (error.code === "42P01") {
+      try {
+        const fallback = await getBookingPaymentSummaries(req.user.id);
+
+        return res.json({
+          success: true,
+          count: fallback.length,
+          payments: fallback,
+        });
+      } catch (fallbackError) {
+        console.error("Get fallback payment summaries error:", fallbackError);
+      }
+    }
+
     console.error("Get payments error:", error);
 
     return res.status(500).json({
@@ -300,6 +356,52 @@ const getMyPayments = async (req, res) => {
     });
   }
 };
+
+async function getBookingPaymentSummaries(customerUserId) {
+  const result = await pool.query(
+    `SELECT
+      b.id AS id,
+      NULL::text AS payment_id,
+      NULL::text AS "paymentId",
+      b.id AS booking_id,
+      b.id AS "bookingId",
+      ds.school_name,
+      ds.school_name AS "schoolName",
+      c.course_name,
+      c.course_name AS "courseName",
+      COALESCE(b.total_amount, c.discount_price, c.price, 0) AS amount,
+      COALESCE(c.advance_amount, 0) AS advance_amount,
+      COALESCE(c.advance_amount, 0) AS "advanceAmount",
+      CASE
+        WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+        ELSE 'UNPAID'
+      END AS payment_status,
+      CASE
+        WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+        ELSE 'UNPAID'
+      END AS "paymentStatus",
+      CASE
+        WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+        ELSE 'UNPAID'
+      END AS status,
+      NULL::text AS payment_method,
+      NULL::text AS "paymentMethod",
+      b.id AS transaction_reference,
+      b.id AS "transactionReference",
+      b.created_at,
+      b.created_at AS "createdAt",
+      b.booking_status,
+      b.booking_status AS "bookingStatus"
+     FROM bookings b
+     JOIN courses c ON b.course_id = c.id
+     JOIN driving_schools ds ON b.school_id = ds.id
+     WHERE b.customer_user_id = $1
+     ORDER BY b.created_at DESC`,
+    [customerUserId]
+  );
+
+  return result.rows;
+}
 
 module.exports = {
   createPaymentOrder,

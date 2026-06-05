@@ -86,6 +86,15 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   );
 }
 
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={`focus-ring w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm ${props.className ?? ""}`}
+    />
+  );
+}
+
 export function Modal({ title, children, open = false }: { title: string; children: React.ReactNode; open?: boolean }) {
   if (!open) return null;
 
@@ -117,12 +126,14 @@ export function DashboardStatCard({
   label,
   value,
   delta,
-  tone = "blue"
+  tone = "blue",
+  href
 }: {
   label: string;
   value: string;
   delta: string;
   tone?: "blue" | "green" | "amber" | "indigo";
+  href?: string;
 }) {
   const bar = {
     blue: "from-blue-500 to-cyan-400",
@@ -131,7 +142,7 @@ export function DashboardStatCard({
     indigo: "from-indigo-500 to-blue-500"
   };
 
-  return (
+  const card = (
     <Card className="overflow-hidden p-0">
       <div className={`h-2 bg-gradient-to-r ${bar[tone]}`} />
       <div className="p-5">
@@ -143,6 +154,16 @@ export function DashboardStatCard({
       </div>
     </Card>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block cursor-pointer rounded-lg transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-100">
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }
 
 export function RatingStars({ rating }: { rating: number }) {

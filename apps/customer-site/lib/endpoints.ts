@@ -11,9 +11,9 @@ export const API_ENDPOINTS = {
   customer: {
     bookings: "/api/customer/bookings",
     payments: "/api/customer/payments",
-    sessions: "/api/sessions/customer",
-    reviews: "/api/reviews/my",
-    complaints: "/api/complaints/my",
+    sessions: "/api/customer/sessions",
+    reviews: "/api/customer/reviews",
+    complaints: "/api/customer/complaints",
     notifications: "/api/notifications/my"
   },
   partner: {
@@ -29,4 +29,3 @@ export const API_ENDPOINTS = {
     documents: "/api/documents/partner/school"
   }
 } as const;
-

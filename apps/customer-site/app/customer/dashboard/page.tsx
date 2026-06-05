@@ -31,10 +31,10 @@ export default function CustomerDashboardPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <DashboardStatCard label="Bookings" value={String(bookings.length)} delta="Live" tone="blue" />
-        <DashboardStatCard label="Payments" value={String(payments.length)} delta="Tracked" tone="green" />
-        <DashboardStatCard label="Sessions" value={String(sessions.length)} delta="Classes" tone="amber" />
-        <DashboardStatCard label="Notifications" value={String(notifications.length)} delta="Updates" tone="indigo" />
+        <DashboardStatCard label="Bookings" value={String(bookings.length)} delta="Live" tone="blue" href="/customer/bookings" />
+        <DashboardStatCard label="Payments" value={String(payments.length)} delta="Tracked" tone="green" href="/customer/payments" />
+        <DashboardStatCard label="Sessions" value={String(sessions.length)} delta="Classes" tone="amber" href="/customer/sessions" />
+        <DashboardStatCard label="Notifications" value={String(notifications.length)} delta="Updates" tone="indigo" href="/customer/notifications" />
       </section>
 
       <section className="mt-8 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
