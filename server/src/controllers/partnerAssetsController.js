@@ -140,6 +140,13 @@ const updateInstructor = async (req, res) => {
     const { full_name, phone, email, license_number, experience_years } =
       req.body;
 
+    if (!full_name || !phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Instructor full name and phone are required",
+      });
+    }
+
     const { school, error } = await getApprovedSchool(req.user.id);
 
     if (error) {
@@ -197,6 +204,13 @@ const updateInstructorStatus = async (req, res) => {
   try {
     const { instructorId } = req.params;
     const { is_active } = req.body;
+
+    if (typeof is_active !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "Instructor active status is required",
+      });
+    }
 
     const { school, error } = await getApprovedSchool(req.user.id);
 
