@@ -1,2 +1,6 @@
-import { Card, Button } from "@/components/ui";
-export default function SchoolDetailsPage(){return <main className="mx-auto max-w-5xl px-4 py-10"><Card><h1 className="text-3xl font-black text-slate-950">School Details</h1><p className="mt-3 text-slate-600">View approved driving schools and courses from the marketplace.</p><div className="mt-6"><Button href="/customer/marketplace">Explore Marketplace</Button></div></Card></main>}
+import SchoolDetailsClient from "./school-details-client";
+
+export default async function SchoolDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <SchoolDetailsClient schoolId={id} />;
+}

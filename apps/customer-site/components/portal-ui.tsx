@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Button, Card } from "@/components/ui";
+import { Button, Card } from "./ui";
 
 export function PageIntro({
   eyebrow,
@@ -98,4 +98,3 @@ export function Field({
 export function FormError({ message }: { message: string }) {
   return message ? <p className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-700">{message}</p> : null;
 }
-

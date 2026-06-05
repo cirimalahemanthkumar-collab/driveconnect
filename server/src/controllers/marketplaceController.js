@@ -7,9 +7,21 @@ const getApprovedSchools = async (req, res) => {
 
     let query = `
       SELECT DISTINCT
-        ds.*
+        ds.*,
+        (
+          SELECT COUNT(*)::int
+          FROM courses active_course
+          WHERE active_course.school_id = ds.id
+          AND active_course.is_active = true
+        ) AS course_count,
+        (
+          SELECT COUNT(*)::int
+          FROM courses active_course
+          WHERE active_course.school_id = ds.id
+          AND active_course.is_active = true
+        ) AS "courseCount"
       FROM driving_schools ds
-      LEFT JOIN courses c ON c.school_id = ds.id
+      LEFT JOIN courses c ON c.school_id = ds.id AND c.is_active = true
       WHERE ds.status::text = 'APPROVED'
       AND ds.verification_status::text = 'APPROVED'
     `;
@@ -45,7 +57,7 @@ const getApprovedSchools = async (req, res) => {
       count++;
     }
 
-    query += ` ORDER BY ds.average_rating DESC, ds.created_at DESC`;
+    query += ` ORDER BY ds.average_rating DESC NULLS LAST, ds.created_at DESC`;
 
     const result = await pool.query(query, values);
     const schools = result.rows.map(serializeSchool);
@@ -87,7 +99,27 @@ const getSchoolDetails = async (req, res) => {
     }
 
     const coursesResult = await pool.query(
-      `SELECT *
+      `SELECT
+        id,
+        school_id,
+        course_name,
+        course_name AS "courseName",
+        course_type,
+        course_type AS "courseType",
+        vehicle_type,
+        vehicle_type AS "vehicleType",
+        transmission,
+        duration_days,
+        duration_days AS "durationDays",
+        total_sessions,
+        total_sessions AS "totalSessions",
+        price,
+        advance_amount,
+        advance_amount AS "advanceAmount",
+        description,
+        is_active,
+        created_at,
+        created_at AS "createdAt"
        FROM courses
        WHERE school_id = $1 AND is_active = true
        ORDER BY created_at DESC`,
@@ -118,7 +150,26 @@ const getAvailableCourses = async (req, res) => {
 
     let query = `
       SELECT
-        c.*,
+        c.id,
+        c.school_id,
+        c.course_name,
+        c.course_name AS "courseName",
+        c.course_type,
+        c.course_type AS "courseType",
+        c.vehicle_type,
+        c.vehicle_type AS "vehicleType",
+        c.transmission,
+        c.duration_days,
+        c.duration_days AS "durationDays",
+        c.total_sessions,
+        c.total_sessions AS "totalSessions",
+        c.price,
+        c.advance_amount,
+        c.advance_amount AS "advanceAmount",
+        c.description,
+        c.is_active,
+        c.created_at,
+        c.created_at AS "createdAt",
         ds.school_name,
         ds.city,
         ds.state,
@@ -178,7 +229,26 @@ const getCourseDetails = async (req, res) => {
 
     const result = await pool.query(
       `SELECT
-        c.*,
+        c.id,
+        c.school_id,
+        c.course_name,
+        c.course_name AS "courseName",
+        c.course_type,
+        c.course_type AS "courseType",
+        c.vehicle_type,
+        c.vehicle_type AS "vehicleType",
+        c.transmission,
+        c.duration_days,
+        c.duration_days AS "durationDays",
+        c.total_sessions,
+        c.total_sessions AS "totalSessions",
+        c.price,
+        c.advance_amount,
+        c.advance_amount AS "advanceAmount",
+        c.description,
+        c.is_active,
+        c.created_at,
+        c.created_at AS "createdAt",
         ds.school_name,
         ds.description AS school_description,
         ds.email AS school_email,
