@@ -5,10 +5,18 @@ const {
   getSchoolById,
   updateSchoolStatus,
 } = require("../controllers/adminSchoolController");
+const { getAdminDashboard } = require("../controllers/dashboardController");
 
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+
+router.get(
+  "/dashboard",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN"),
+  getAdminDashboard
+);
 
 router.get(
   "/schools",

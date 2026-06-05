@@ -12,7 +12,7 @@ const router = express.Router();
 router.get(
   "/admin",
   protect,
-  allowRoles("ADMIN", "SUPER_ADMIN", "ACCOUNTANT", "SUPPORT_STAFF"),
+  allowRoles("ADMIN", "SUPER_ADMIN"),
   getAdminDashboard
 );
 

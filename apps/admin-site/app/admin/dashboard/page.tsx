@@ -9,18 +9,18 @@ import { api, getApiError, isRecord, readNumber, unwrapPayload } from "../../../
 type DashboardData = Record<string, unknown>;
 
 const countMetrics = [
-  { label: "Total users", keys: ["totalUsers", "users", "userCount"], detail: "Registered accounts", tone: "blue" },
-  { label: "Schools", keys: ["totalSchools", "schools", "schoolCount"], detail: "Partner schools", tone: "indigo" },
-  { label: "Courses", keys: ["totalCourses", "courses", "courseCount"], detail: "Active and archived", tone: "green" },
-  { label: "Bookings", keys: ["totalBookings", "bookings", "bookingCount"], detail: "Marketplace requests", tone: "amber" },
-  { label: "Complaints", keys: ["totalComplaints", "complaints", "openComplaints"], detail: "Support workload", tone: "amber" },
-  { label: "Reviews", keys: ["totalReviews", "reviews", "reviewCount"], detail: "Customer feedback", tone: "blue" }
+  { label: "Total users", keys: ["total_users", "totalUsers", "users", "userCount"], detail: "Registered accounts", tone: "blue" },
+  { label: "Schools", keys: ["total_schools", "totalSchools", "schools", "schoolCount"], detail: "Partner schools", tone: "indigo" },
+  { label: "Courses", keys: ["total_courses", "totalCourses", "courses", "courseCount"], detail: "Active and archived", tone: "green" },
+  { label: "Bookings", keys: ["total_bookings", "totalBookings", "bookings", "bookingCount"], detail: "Marketplace requests", tone: "amber" },
+  { label: "Complaints", keys: ["total_complaints", "totalComplaints", "complaints", "openComplaints"], detail: "Support workload", tone: "amber" },
+  { label: "Reviews", keys: ["total_reviews", "totalReviews", "reviews", "reviewCount"], detail: "Customer feedback", tone: "blue" }
 ] as const;
 
 const moneyMetrics = [
-  { label: "Revenue", keys: ["totalRevenue", "revenue", "grossRevenue"], detail: "Gross platform value", tone: "blue" },
-  { label: "Commission", keys: ["totalCommission", "commission", "platformRevenue"], detail: "Platform earnings", tone: "green" },
-  { label: "Payouts", keys: ["totalPayouts", "payouts", "schoolPayouts"], detail: "School settlements", tone: "indigo" }
+  { label: "Revenue", keys: ["revenue_total", "revenueTotal", "totalRevenue", "revenue", "grossRevenue"], detail: "Gross platform value", tone: "blue" },
+  { label: "Commission", keys: ["commission_total", "commissionTotal", "totalCommission", "commission", "platformRevenue"], detail: "Platform earnings", tone: "green" },
+  { label: "Payouts", keys: ["payout_total", "payoutTotal", "totalPayouts", "payouts", "schoolPayouts"], detail: "School settlements", tone: "indigo" }
 ] as const;
 
 export default function AdminDashboardPage() {
@@ -31,10 +31,16 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!user) return;
     setError("");
-    void api.get("/api/dashboard/admin")
+    setDashboard(null);
+    void api.get("/api/admin/dashboard")
       .then((response) => {
         const payload = unwrapPayload<unknown>(response.data);
-        setDashboard(isRecord(payload) ? payload : {});
+        const stats = isRecord(payload) && isRecord(payload.stats)
+          ? payload.stats
+          : isRecord(payload) && isRecord(payload.dashboard)
+            ? payload.dashboard
+            : payload;
+        setDashboard(isRecord(stats) ? stats : {});
       })
       .catch((requestError) => setError(getApiError(requestError, "Unable to load dashboard metrics.")));
   }, [user]);
