@@ -5,6 +5,12 @@ const {
   getSchoolById,
   updateSchoolStatus,
 } = require("../controllers/adminSchoolController");
+const {
+  getUsers,
+  getCourses,
+  getBookings,
+  getReviews,
+} = require("../controllers/adminListController");
 const { getAdminDashboard } = require("../controllers/dashboardController");
 
 const { protect, allowRoles } = require("../middleware/authMiddleware");
@@ -23,6 +29,34 @@ router.get(
   protect,
   allowRoles("ADMIN", "SUPER_ADMIN"),
   getSchools
+);
+
+router.get(
+  "/users",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN"),
+  getUsers
+);
+
+router.get(
+  "/courses",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN"),
+  getCourses
+);
+
+router.get(
+  "/bookings",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN"),
+  getBookings
+);
+
+router.get(
+  "/reviews",
+  protect,
+  allowRoles("ADMIN", "SUPER_ADMIN"),
+  getReviews
 );
 
 router.get(

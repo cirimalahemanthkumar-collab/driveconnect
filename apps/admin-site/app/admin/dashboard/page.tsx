@@ -9,18 +9,18 @@ import { api, getApiError, isRecord, readNumber, unwrapPayload } from "../../../
 type DashboardData = Record<string, unknown>;
 
 const countMetrics = [
-  { label: "Total users", keys: ["total_users", "totalUsers", "users", "userCount"], detail: "Registered accounts", tone: "blue" },
-  { label: "Schools", keys: ["total_schools", "totalSchools", "schools", "schoolCount"], detail: "Partner schools", tone: "indigo" },
-  { label: "Courses", keys: ["total_courses", "totalCourses", "courses", "courseCount"], detail: "Active and archived", tone: "green" },
-  { label: "Bookings", keys: ["total_bookings", "totalBookings", "bookings", "bookingCount"], detail: "Marketplace requests", tone: "amber" },
-  { label: "Complaints", keys: ["total_complaints", "totalComplaints", "complaints", "openComplaints"], detail: "Support workload", tone: "amber" },
-  { label: "Reviews", keys: ["total_reviews", "totalReviews", "reviews", "reviewCount"], detail: "Customer feedback", tone: "blue" }
+  { label: "Total users", keys: ["total_users", "totalUsers", "users", "userCount"], detail: "Registered accounts", tone: "blue", href: "/admin/users" },
+  { label: "Schools", keys: ["total_schools", "totalSchools", "schools", "schoolCount"], detail: "Partner schools", tone: "indigo", href: "/admin/schools" },
+  { label: "Courses", keys: ["total_courses", "totalCourses", "courses", "courseCount"], detail: "Active and archived", tone: "green", href: "/admin/courses" },
+  { label: "Bookings", keys: ["total_bookings", "totalBookings", "bookings", "bookingCount"], detail: "Marketplace requests", tone: "amber", href: "/admin/bookings" },
+  { label: "Complaints", keys: ["total_complaints", "totalComplaints", "complaints", "openComplaints"], detail: "Support workload", tone: "amber", href: "/admin/complaints" },
+  { label: "Reviews", keys: ["total_reviews", "totalReviews", "reviews", "reviewCount"], detail: "Customer feedback", tone: "blue", href: "/admin/reviews" }
 ] as const;
 
 const moneyMetrics = [
-  { label: "Revenue", keys: ["revenue_total", "revenueTotal", "totalRevenue", "revenue", "grossRevenue"], detail: "Gross platform value", tone: "blue" },
-  { label: "Commission", keys: ["commission_total", "commissionTotal", "totalCommission", "commission", "platformRevenue"], detail: "Platform earnings", tone: "green" },
-  { label: "Payouts", keys: ["payout_total", "payoutTotal", "totalPayouts", "payouts", "schoolPayouts"], detail: "School settlements", tone: "indigo" }
+  { label: "Revenue", keys: ["revenue_total", "revenueTotal", "totalRevenue", "revenue", "grossRevenue"], detail: "Gross platform value", tone: "blue", href: "/admin/payouts" },
+  { label: "Commission", keys: ["commission_total", "commissionTotal", "totalCommission", "commission", "platformRevenue"], detail: "Platform earnings", tone: "green", href: "/admin/payouts" },
+  { label: "Payouts", keys: ["payout_total", "payoutTotal", "totalPayouts", "payouts", "schoolPayouts"], detail: "School settlements", tone: "indigo", href: "/admin/payouts" }
 ] as const;
 
 export default function AdminDashboardPage() {
@@ -56,10 +56,10 @@ export default function AdminDashboardPage() {
         <>
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {countMetrics.map((metric) => (
-              <StatCard key={metric.label} label={metric.label} value={String(pickMetric(dashboard, metric.keys))} detail={metric.detail} tone={metric.tone} />
+              <StatCard key={metric.label} label={metric.label} value={String(pickMetric(dashboard, metric.keys))} detail={metric.detail} tone={metric.tone} href={metric.href} />
             ))}
             {moneyMetrics.map((metric) => (
-              <StatCard key={metric.label} label={metric.label} value={formatCurrency(pickMetric(dashboard, metric.keys))} detail={metric.detail} tone={metric.tone} />
+              <StatCard key={metric.label} label={metric.label} value={formatCurrency(pickMetric(dashboard, metric.keys))} detail={metric.detail} tone={metric.tone} href={metric.href} />
             ))}
           </div>
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">

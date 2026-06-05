@@ -21,9 +21,9 @@ const getAdminDashboard = async (req, res) => {
       "users",
       `SELECT
         COUNT(*)::int AS total_users,
-        COUNT(*) FILTER (WHERE role = 'CUSTOMER')::int AS total_customers,
-        COUNT(*) FILTER (WHERE role IN ('SCHOOL_OWNER', 'PARTNER'))::int AS total_school_owners,
-        COUNT(*) FILTER (WHERE role IN ('ADMIN', 'SUPER_ADMIN'))::int AS total_admins
+        COUNT(*) FILTER (WHERE UPPER(role::text) = 'CUSTOMER')::int AS total_customers,
+        COUNT(*) FILTER (WHERE UPPER(role::text) IN ('SCHOOL_OWNER', 'PARTNER'))::int AS total_school_owners,
+        COUNT(*) FILTER (WHERE UPPER(role::text) IN ('ADMIN', 'SUPER_ADMIN', 'SUPPORT_STAFF', 'ACCOUNTANT'))::int AS total_admins
        FROM users`
     );
 
@@ -83,6 +83,8 @@ const getAdminDashboard = async (req, res) => {
       totalCustomers: readNumber(users, "total_customers"),
       total_school_owners: readNumber(users, "total_school_owners"),
       totalSchoolOwners: readNumber(users, "total_school_owners"),
+      total_admins: readNumber(users, "total_admins"),
+      totalAdmins: readNumber(users, "total_admins"),
       total_schools: readNumber(schools, "total_schools"),
       totalSchools: readNumber(schools, "total_schools"),
       approved_schools: readNumber(schools, "approved_schools"),

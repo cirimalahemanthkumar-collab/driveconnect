@@ -8,9 +8,13 @@ import { Badge, Button, LoadingPanel } from "./ui";
 
 const adminLinks = [
   { href: "/admin/dashboard", label: "Overview" },
+  { href: "/admin/users", label: "Users" },
   { href: "/admin/schools", label: "Schools" },
+  { href: "/admin/courses", label: "Courses" },
+  { href: "/admin/bookings", label: "Bookings" },
   { href: "/admin/documents", label: "Documents" },
   { href: "/admin/complaints", label: "Complaints" },
+  { href: "/admin/reviews", label: "Reviews" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/notifications", label: "Notifications" }
 ];
@@ -69,4 +73,3 @@ export function AdminShell({ title, eyebrow, children, actions }: { title: strin
     </main>
   );
 }
-

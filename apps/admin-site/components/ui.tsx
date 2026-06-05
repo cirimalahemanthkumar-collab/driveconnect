@@ -62,14 +62,27 @@ export function StatusBadge({ status }: { status: unknown }) {
   return <Badge tone={tone}>{formatLabel(text)}</Badge>;
 }
 
-export function StatCard({ label, value, detail, tone = "blue" }: { label: string; value: string; detail: string; tone?: "blue" | "green" | "amber" | "indigo" }) {
+export function StatCard({
+  label,
+  value,
+  detail,
+  tone = "blue",
+  href
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "blue" | "green" | "amber" | "indigo";
+  href?: string;
+}) {
   const bars = {
     blue: "from-blue-500 to-cyan-400",
     green: "from-green-500 to-emerald-300",
     amber: "from-amber-400 to-orange-400",
     indigo: "from-indigo-500 to-blue-500"
   };
-  return (
+
+  const card = (
     <Card className="overflow-hidden p-0">
       <div className={`h-2 bg-gradient-to-r ${bars[tone]}`} />
       <div className="p-5">
@@ -79,6 +92,16 @@ export function StatCard({ label, value, detail, tone = "blue" }: { label: strin
       </div>
     </Card>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block cursor-pointer rounded-xl transition hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-100">
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }
 
 export function Alert({ children, tone = "error" }: { children: ReactNode; tone?: "error" | "success" | "info" }) {
@@ -121,4 +144,3 @@ export function formatDate(value: unknown) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
-
