@@ -12,11 +12,11 @@ export default function CustomerDashboardPage() {
   const sessionsResource = useApiResource<unknown>(API_ENDPOINTS.customer.sessions, []);
   const notificationsResource = useApiResource<unknown>(API_ENDPOINTS.customer.notifications, []);
   const bookings = asList(bookingsResource.data, ["bookings", "items"]);
-  const payments = asList(paymentsResource.data, ["payments", "items"]);
+  const payments = paymentsResource.error ? [] : asList(paymentsResource.data, ["payments", "items"]);
   const sessions = asList(sessionsResource.data, ["sessions", "items"]);
   const notifications = asList(notificationsResource.data, ["notifications", "items"]);
-  const loading = bookingsResource.loading || paymentsResource.loading || sessionsResource.loading || notificationsResource.loading;
-  const error = bookingsResource.error || paymentsResource.error || sessionsResource.error || notificationsResource.error;
+  const loading = bookingsResource.loading || sessionsResource.loading || notificationsResource.loading;
+  const error = bookingsResource.error || sessionsResource.error || notificationsResource.error;
 
   if (loading) return <LoadingState label="Preparing your learner dashboard..." />;
 
@@ -29,6 +29,11 @@ export default function CustomerDashboardPage() {
         action={<Button href="/customer/marketplace" variant="secondary">Browse schools</Button>}
       />
       {error ? <ErrorBanner message={error} /> : null}
+      {paymentsResource.error ? (
+        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-100">
+          Payment summaries are temporarily unavailable. The rest of your dashboard is still ready.
+        </p>
+      ) : null}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <DashboardStatCard label="Bookings" value={String(bookings.length)} delta="Live" tone="blue" href="/customer/bookings" />

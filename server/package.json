@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "node -c src/app.js && node -c src/server.js && node -c src/controllers/partnerController.js && node -c src/controllers/adminSchoolController.js && node -c src/controllers/adminListController.js && node -c src/controllers/marketplaceController.js && node -c src/utils/schoolVerification.js",
+    "build": "node -c src/app.js && node -c src/server.js && node -c src/controllers/partnerController.js && node -c src/controllers/adminSchoolController.js && node -c src/controllers/adminListController.js && node -c src/controllers/marketplaceController.js && node -c src/controllers/paymentController.js && node -c src/controllers/sessionController.js && node -c src/controllers/reviewController.js && node -c src/controllers/complaintController.js && node -c src/routes/customerRoutes.js && node -c src/utils/schoolVerification.js",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "test-db": "node src/testDb.js"

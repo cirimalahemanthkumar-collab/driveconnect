@@ -271,136 +271,298 @@ const markTestPaymentSuccess = async (req, res) => {
 
 const getMyPayments = async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT
-        COALESCE(po.id, b.id) AS id,
-        po.id AS payment_id,
-        po.id AS "paymentId",
-        b.id AS booking_id,
-        b.id AS "bookingId",
-        ds.school_name,
-        ds.school_name AS "schoolName",
-        c.course_name,
-        c.course_name AS "courseName",
-        COALESCE(po.amount, b.total_amount, c.discount_price, c.price, 0) AS amount,
-        COALESCE(c.advance_amount, 0) AS advance_amount,
-        COALESCE(c.advance_amount, 0) AS "advanceAmount",
-        COALESCE(po.status, CASE
-          WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
-          ELSE 'UNPAID'
-        END) AS payment_status,
-        COALESCE(po.status, CASE
-          WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
-          ELSE 'UNPAID'
-        END) AS "paymentStatus",
-        COALESCE(po.status, CASE
-          WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
-          ELSE 'UNPAID'
-        END) AS status,
-        COALESCE(pt.payment_method, po.gateway_name) AS payment_method,
-        COALESCE(pt.payment_method, po.gateway_name) AS "paymentMethod",
-        COALESCE(pt.gateway_payment_id, po.gateway_order_id, b.id) AS transaction_reference,
-        COALESCE(pt.gateway_payment_id, po.gateway_order_id, b.id) AS "transactionReference",
-        COALESCE(po.created_at, b.created_at) AS created_at,
-        COALESCE(po.created_at, b.created_at) AS "createdAt",
-        b.booking_status,
-        b.booking_status AS "bookingStatus"
-       FROM bookings b
-       JOIN courses c ON b.course_id = c.id
-       JOIN driving_schools ds ON b.school_id = ds.id
-       LEFT JOIN LATERAL (
-        SELECT *
-        FROM payment_orders payment_order
-        WHERE payment_order.booking_id = b.id
-        AND payment_order.customer_user_id = $1
-        ORDER BY payment_order.created_at DESC
-        LIMIT 1
-       ) po ON true
-       LEFT JOIN LATERAL (
-        SELECT *
-        FROM payment_transactions payment_transaction
-        WHERE payment_transaction.payment_order_id = po.id
-        ORDER BY payment_transaction.paid_at DESC NULLS LAST
-        LIMIT 1
-       ) pt ON true
-       WHERE b.customer_user_id = $1
-       ORDER BY COALESCE(po.created_at, b.created_at) DESC`,
-      [req.user.id]
-    );
+    const fallback = await getBookingPaymentSummaries(req.user.id);
+    let realPayments = [];
+
+    try {
+      realPayments = await getRealCustomerPayments(req.user.id);
+    } catch (paymentLookupError) {
+      if (isConnectionError(paymentLookupError)) throw paymentLookupError;
+      console.error("Customer real payment lookup failed, using booking summaries:", paymentLookupError.message);
+    }
+
+    const payments = realPayments.length ? realPayments : fallback;
 
     return res.json({
       success: true,
-      count: result.rows.length,
-      payments: result.rows,
+      count: payments.length,
+      payments,
     });
   } catch (error) {
-    if (error.code === "42P01") {
-      try {
-        const fallback = await getBookingPaymentSummaries(req.user.id);
+    if (isConnectionError(error)) {
+      console.error("Customer payments database connection error:", error);
 
-        return res.json({
-          success: true,
-          count: fallback.length,
-          payments: fallback,
-        });
-      } catch (fallbackError) {
-        console.error("Get fallback payment summaries error:", fallbackError);
-      }
+      return res.status(500).json({
+        success: false,
+        message: "Database connection failed while getting payments",
+      });
     }
 
     console.error("Get payments error:", error);
 
-    return res.status(500).json({
-      success: false,
-      message: "Server error while getting payments",
+    return res.json({
+      success: true,
+      count: 0,
+      payments: [],
     });
   }
 };
 
 async function getBookingPaymentSummaries(customerUserId) {
+  const schema = await getPaymentSchema();
+
+  if (
+    !hasColumns(schema.bookings, ["id", "customer_user_id", "course_id", "school_id", "booking_status"]) ||
+    !hasColumns(schema.courses, ["id", "course_name"]) ||
+    !hasColumns(schema.driving_schools, ["id", "school_name"])
+  ) {
+    return [];
+  }
+
+  const schoolJoin = schema.courses.has("school_id")
+    ? `COALESCE(b.${quoteIdent("school_id")}, c.${quoteIdent("school_id")}) = ds.${quoteIdent("id")}`
+    : `b.${quoteIdent("school_id")} = ds.${quoteIdent("id")}`;
+
+  const amountExpression = courseMoneyExpression(schema.courses, schema.bookings);
+  const advanceExpression = schema.courses.has("advance_amount")
+    ? `COALESCE(c.${quoteIdent("advance_amount")}, 0)`
+    : "0";
+  const createdAtExpression = schema.bookings.has("created_at")
+    ? `b.${quoteIdent("created_at")}`
+    : "NULL::timestamp";
+
   const result = await pool.query(
     `SELECT
-      b.id AS id,
+      b.${quoteIdent("id")} AS id,
       NULL::text AS payment_id,
       NULL::text AS "paymentId",
-      b.id AS booking_id,
-      b.id AS "bookingId",
-      ds.school_name,
-      ds.school_name AS "schoolName",
-      c.course_name,
-      c.course_name AS "courseName",
-      COALESCE(b.total_amount, c.discount_price, c.price, 0) AS amount,
-      COALESCE(c.advance_amount, 0) AS advance_amount,
-      COALESCE(c.advance_amount, 0) AS "advanceAmount",
+      b.${quoteIdent("id")} AS booking_id,
+      b.${quoteIdent("id")} AS "bookingId",
+      ds.${quoteIdent("school_name")} AS school_name,
+      ds.${quoteIdent("school_name")} AS "schoolName",
+      c.${quoteIdent("course_name")} AS course_name,
+      c.${quoteIdent("course_name")} AS "courseName",
+      ${amountExpression} AS amount,
+      ${advanceExpression} AS advance_amount,
+      ${advanceExpression} AS "advanceAmount",
       CASE
-        WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+        WHEN UPPER(b.${quoteIdent("booking_status")}::text) IN ('ACCEPTED', 'CONFIRMED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
         ELSE 'UNPAID'
       END AS payment_status,
       CASE
-        WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+        WHEN UPPER(b.${quoteIdent("booking_status")}::text) IN ('ACCEPTED', 'CONFIRMED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
         ELSE 'UNPAID'
       END AS "paymentStatus",
       CASE
-        WHEN UPPER(b.booking_status::text) IN ('ACCEPTED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
+        WHEN UPPER(b.${quoteIdent("booking_status")}::text) IN ('ACCEPTED', 'CONFIRMED', 'ONGOING', 'COMPLETED') THEN 'PENDING'
         ELSE 'UNPAID'
       END AS status,
       NULL::text AS payment_method,
       NULL::text AS "paymentMethod",
-      b.id AS transaction_reference,
-      b.id AS "transactionReference",
-      b.created_at,
-      b.created_at AS "createdAt",
-      b.booking_status,
-      b.booking_status AS "bookingStatus"
+      b.${quoteIdent("id")} AS transaction_reference,
+      b.${quoteIdent("id")} AS "transactionReference",
+      ${createdAtExpression} AS created_at,
+      ${createdAtExpression} AS "createdAt",
+      b.${quoteIdent("booking_status")} AS booking_status,
+      b.${quoteIdent("booking_status")} AS "bookingStatus"
      FROM bookings b
-     JOIN courses c ON b.course_id = c.id
-     JOIN driving_schools ds ON b.school_id = ds.id
-     WHERE b.customer_user_id = $1
-     ORDER BY b.created_at DESC`,
+     JOIN courses c ON b.${quoteIdent("course_id")} = c.${quoteIdent("id")}
+     JOIN driving_schools ds ON ${schoolJoin}
+     WHERE b.${quoteIdent("customer_user_id")} = $1
+     ORDER BY ${createdAtExpression} DESC NULLS LAST`,
     [customerUserId]
   );
 
   return result.rows;
+}
+
+async function getRealCustomerPayments(customerUserId) {
+  const schema = await getPaymentSchema();
+  const source = findPaymentSource(schema);
+
+  if (!source || !source.columns.has("booking_id")) {
+    return [];
+  }
+
+  const sourceName = source.table;
+  const sourceColumns = source.columns;
+
+  if (
+    !hasColumns(schema.bookings, ["id", "customer_user_id", "course_id", "school_id", "booking_status"]) ||
+    !hasColumns(schema.courses, ["id", "course_name"]) ||
+    !hasColumns(schema.driving_schools, ["id", "school_name"])
+  ) {
+    return [];
+  }
+
+  const schoolJoin = schema.courses.has("school_id")
+    ? `COALESCE(b.${quoteIdent("school_id")}, c.${quoteIdent("school_id")}) = ds.${quoteIdent("id")}`
+    : `b.${quoteIdent("school_id")} = ds.${quoteIdent("id")}`;
+
+  const transactionJoin = buildTransactionJoin(schema.payment_transactions, sourceColumns);
+  const paymentIdExpression = sourceColumns.has("id")
+    ? `p.${quoteIdent("id")}`
+    : `p.${quoteIdent("booking_id")}`;
+  const paymentAmountExpression = sourceColumns.has("amount")
+    ? `COALESCE(p.${quoteIdent("amount")}, ${courseMoneyExpression(schema.courses, schema.bookings)})`
+    : courseMoneyExpression(schema.courses, schema.bookings);
+  const statusExpression = firstExistingColumn(sourceColumns, ["status", "payment_status"])
+    ? `COALESCE(p.${quoteIdent(firstExistingColumn(sourceColumns, ["status", "payment_status"]))}::text, 'PENDING')`
+    : "'PENDING'";
+  const paymentMethodExpression = firstExistingColumn(sourceColumns, ["payment_method", "method", "gateway_name", "provider"])
+    ? `p.${quoteIdent(firstExistingColumn(sourceColumns, ["payment_method", "method", "gateway_name", "provider"]))}::text`
+    : "NULL::text";
+  const referenceExpression = firstExistingColumn(sourceColumns, ["transaction_reference", "gateway_payment_id", "provider_payment_id", "gateway_order_id", "provider_order_id", "reference"])
+    ? `p.${quoteIdent(firstExistingColumn(sourceColumns, ["transaction_reference", "gateway_payment_id", "provider_payment_id", "gateway_order_id", "provider_order_id", "reference"]))}::text`
+    : `${paymentIdExpression}::text`;
+  const paymentCreatedExpression = firstExistingColumn(sourceColumns, ["created_at", "createdAt", "paid_at", "paidAt", "updated_at", "updatedAt"])
+    ? `p.${quoteIdent(firstExistingColumn(sourceColumns, ["created_at", "createdAt", "paid_at", "paidAt", "updated_at", "updatedAt"]))}`
+    : "NULL::timestamp";
+  const createdAtExpression = schema.bookings.has("created_at")
+    ? `COALESCE(${paymentCreatedExpression}, b.${quoteIdent("created_at")})`
+    : paymentCreatedExpression;
+  const advanceExpression = schema.courses.has("advance_amount")
+    ? `COALESCE(c.${quoteIdent("advance_amount")}, 0)`
+    : "0";
+  const customerFilter = sourceColumns.has("customer_user_id")
+    ? `AND p.${quoteIdent("customer_user_id")} = $1`
+    : "";
+
+  const result = await pool.query(
+    `SELECT
+      ${paymentIdExpression} AS id,
+      ${paymentIdExpression} AS payment_id,
+      ${paymentIdExpression} AS "paymentId",
+      b.${quoteIdent("id")} AS booking_id,
+      b.${quoteIdent("id")} AS "bookingId",
+      ds.${quoteIdent("school_name")} AS school_name,
+      ds.${quoteIdent("school_name")} AS "schoolName",
+      c.${quoteIdent("course_name")} AS course_name,
+      c.${quoteIdent("course_name")} AS "courseName",
+      ${paymentAmountExpression} AS amount,
+      ${advanceExpression} AS advance_amount,
+      ${advanceExpression} AS "advanceAmount",
+      ${statusExpression} AS payment_status,
+      ${statusExpression} AS "paymentStatus",
+      ${statusExpression} AS status,
+      COALESCE(tx.payment_method, ${paymentMethodExpression}) AS payment_method,
+      COALESCE(tx.payment_method, ${paymentMethodExpression}) AS "paymentMethod",
+      COALESCE(tx.transaction_reference, ${referenceExpression}) AS transaction_reference,
+      COALESCE(tx.transaction_reference, ${referenceExpression}) AS "transactionReference",
+      ${createdAtExpression} AS created_at,
+      ${createdAtExpression} AS "createdAt",
+      b.${quoteIdent("booking_status")} AS booking_status,
+      b.${quoteIdent("booking_status")} AS "bookingStatus"
+     FROM ${quoteIdent(sourceName)} p
+     JOIN bookings b ON p.${quoteIdent("booking_id")} = b.${quoteIdent("id")}
+     JOIN courses c ON b.${quoteIdent("course_id")} = c.${quoteIdent("id")}
+     JOIN driving_schools ds ON ${schoolJoin}
+     ${transactionJoin}
+     WHERE b.${quoteIdent("customer_user_id")} = $1
+     ${customerFilter}
+     ORDER BY ${createdAtExpression} DESC NULLS LAST`,
+    [customerUserId]
+  );
+
+  return result.rows;
+}
+
+async function getPaymentSchema() {
+  const result = await pool.query(
+    `SELECT table_name, column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+     AND table_name = ANY($1::text[])`,
+    [[
+      "bookings",
+      "courses",
+      "driving_schools",
+      "payment_orders",
+      "payments",
+      "payment_transactions",
+    ]]
+  );
+
+  return result.rows.reduce((schema, row) => {
+    if (!schema[row.table_name]) schema[row.table_name] = new Set();
+    schema[row.table_name].add(row.column_name);
+    return schema;
+  }, {
+    bookings: new Set(),
+    courses: new Set(),
+    driving_schools: new Set(),
+    payment_orders: new Set(),
+    payments: new Set(),
+    payment_transactions: new Set(),
+  });
+}
+
+function findPaymentSource(schema) {
+  if (schema.payment_orders.size) {
+    return { table: "payment_orders", columns: schema.payment_orders };
+  }
+
+  if (schema.payments.size) {
+    return { table: "payments", columns: schema.payments };
+  }
+
+  return null;
+}
+
+function buildTransactionJoin(transactionColumns, sourceColumns) {
+  if (!transactionColumns.size || !transactionColumns.has("payment_order_id") || !sourceColumns.has("id")) {
+    return "LEFT JOIN LATERAL (SELECT NULL::text AS payment_method, NULL::text AS transaction_reference) tx ON true";
+  }
+
+  const methodColumn = firstExistingColumn(transactionColumns, ["payment_method", "method"]);
+  const referenceColumn = firstExistingColumn(transactionColumns, ["gateway_payment_id", "provider_payment_id", "transaction_reference", "reference"]);
+  const paidAtColumn = firstExistingColumn(transactionColumns, ["paid_at", "created_at", "updated_at"]);
+
+  const methodExpression = methodColumn ? `payment_transaction.${quoteIdent(methodColumn)}::text` : "NULL::text";
+  const referenceExpression = referenceColumn ? `payment_transaction.${quoteIdent(referenceColumn)}::text` : "NULL::text";
+  const orderExpression = paidAtColumn ? `payment_transaction.${quoteIdent(paidAtColumn)} DESC NULLS LAST` : `payment_transaction.${quoteIdent("payment_order_id")}`;
+
+  return `LEFT JOIN LATERAL (
+      SELECT
+        ${methodExpression} AS payment_method,
+        ${referenceExpression} AS transaction_reference
+      FROM payment_transactions payment_transaction
+      WHERE payment_transaction.${quoteIdent("payment_order_id")} = p.${quoteIdent("id")}
+      ORDER BY ${orderExpression}
+      LIMIT 1
+    ) tx ON true`;
+}
+
+function courseMoneyExpression(courseColumns, bookingColumns) {
+  if (courseColumns.has("price")) return `COALESCE(c.${quoteIdent("price")}, 0)`;
+  if (courseColumns.has("discount_price")) return `COALESCE(c.${quoteIdent("discount_price")}, 0)`;
+  if (bookingColumns.has("total_amount")) return `COALESCE(b.${quoteIdent("total_amount")}, 0)`;
+  return "0";
+}
+
+function hasColumns(columns, requiredColumns) {
+  return requiredColumns.every((column) => columns.has(column));
+}
+
+function firstExistingColumn(columns, names) {
+  return names.find((name) => columns.has(name)) || "";
+}
+
+function quoteIdent(identifier) {
+  return `"${String(identifier).replace(/"/g, '""')}"`;
+}
+
+function isConnectionError(error) {
+  return [
+    "08000",
+    "08003",
+    "08006",
+    "08001",
+    "08004",
+    "57P01",
+    "57P02",
+    "57P03",
+  ].includes(error?.code);
 }
 
 module.exports = {
