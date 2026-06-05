@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
     me: "/api/auth/me"
   },
   marketplace: {
+    summary: "/api/marketplace/summary",
     schools: "/api/marketplace/schools",
     courses: "/api/marketplace/courses"
   },

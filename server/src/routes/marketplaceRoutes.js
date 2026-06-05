@@ -1,6 +1,7 @@
 const express = require("express");
 
 const {
+  getMarketplaceSummary,
   getApprovedSchools,
   getSchoolDetails,
   getAvailableCourses,
@@ -8,6 +9,8 @@ const {
 } = require("../controllers/marketplaceController");
 
 const router = express.Router();
+
+router.get("/summary", getMarketplaceSummary);
 
 router.get("/schools", getApprovedSchools);
 router.get("/schools/:schoolId", getSchoolDetails);
