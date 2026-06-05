@@ -12,7 +12,7 @@ export function RoleGuard({ roles, children }: { roles: AppRole[]; children: Rea
 
   useEffect(() => {
     if (loading) return;
-    if (!user) router.replace("/login");
+    if (!user) router.replace(loginHrefForCurrentPath());
     else if (!allowed) router.replace(destinationFor(user.role));
   }, [allowed, loading, router, user]);
 
@@ -23,3 +23,10 @@ export function RoleGuard({ roles, children }: { roles: AppRole[]; children: Rea
   return <>{children}</>;
 }
 
+function loginHrefForCurrentPath() {
+  if (typeof window === "undefined") return "/login";
+
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  if (!currentPath || currentPath === "/") return "/login";
+  return `/login?redirect=${encodeURIComponent(currentPath)}`;
+}

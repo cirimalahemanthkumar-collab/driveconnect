@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, Card, Input } from "@/components/ui";
+import { Button, Card, Input } from "../../components/ui";
 import { useAuth } from "../../components/auth-provider";
 import { Field, FormError } from "../../components/portal-ui";
 import { getApiErrorMessage } from "../../lib/api";
@@ -12,13 +12,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [redirectPath, setRedirectPath] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const queryMessage = new URLSearchParams(window.location.search).get("message");
+    const params = new URLSearchParams(window.location.search);
+    const queryMessage = params.get("message");
+    setRedirectPath(params.get("redirect") || "");
     if (queryMessage) setError(queryMessage);
     else if (message) setError(message);
   }, [message]);
+
+  const registerHref = redirectPath ? `/register?redirect=${encodeURIComponent(redirectPath)}` : "/register";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,11 +56,10 @@ export default function LoginPage() {
           <FormError message={error} />
           <Button type="submit" disabled={submitting}>{submitting ? "Signing in..." : "Login"}</Button>
           <p className="text-center text-sm text-slate-600">
-            New to DriveConnect? <Link href="/register" className="font-bold text-blue-700">Create an account</Link>
+            New to DriveConnect? <Link href={registerHref} className="font-bold text-blue-700">Create an account</Link>
           </p>
         </form>
       </Card>
     </main>
   );
 }
-

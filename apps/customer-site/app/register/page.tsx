@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button, Card, Input } from "@/components/ui";
+import { Button, Card, Input } from "../../components/ui";
 import { useAuth } from "../../components/auth-provider";
 import { Field, FormError } from "../../components/portal-ui";
 import { getApiErrorMessage } from "../../lib/api";
@@ -14,25 +14,26 @@ export default function RegisterPage() {
   const [role, setRole] = useState<Role>("CUSTOMER");
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", schoolName: "" });
   const [error, setError] = useState("");
+  const [redirectPath, setRedirectPath] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setRedirectPath(new URLSearchParams(window.location.search).get("redirect") || "");
+  }, []);
 
   function update(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
   }
+
+  const loginHref = redirectPath ? `/login?redirect=${encodeURIComponent(redirectPath)}` : "/login";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
     setError("");
     try {
-await register({
-  full_name: form.name.trim(),
-  email: form.email.trim().toLowerCase(),
-  phone: form.phone.trim(),
-  password: form.password,
-  role,
-  school_name: role === "SCHOOL_OWNER" ? form.schoolName.trim() : undefined
-} as any);    } catch (requestError) {
+      await register({ ...form, role, schoolName: role === "SCHOOL_OWNER" ? form.schoolName : undefined });
+    } catch (requestError) {
       setError(getApiErrorMessage(requestError, "Unable to create the account."));
     } finally {
       setSubmitting(false);
@@ -61,10 +62,9 @@ await register({
           <Field label="Password"><Input value={form.password} onChange={(event) => update("password", event.target.value)} type="password" minLength={6} required /></Field>
           <FormError message={error} />
           <Button type="submit" variant={role === "CUSTOMER" ? "primary" : "secondary"} disabled={submitting}>{submitting ? "Creating account..." : "Create account"}</Button>
-          <p className="text-center text-sm text-slate-600">Already registered? <Link href="/login" className="font-bold text-blue-700">Login</Link></p>
+          <p className="text-center text-sm text-slate-600">Already registered? <Link href={loginHref} className="font-bold text-blue-700">Login</Link></p>
         </form>
       </Card>
     </main>
   );
 }
-

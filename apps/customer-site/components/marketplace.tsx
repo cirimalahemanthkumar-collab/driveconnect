@@ -8,7 +8,12 @@ import { API_ENDPOINTS } from "../lib/endpoints";
 import { asList, numberValue, text, type ApiRecord } from "../lib/records";
 import { ErrorBanner, LoadingState, PageIntro } from "./portal-ui";
 
-export function Marketplace({ compact = false }: { compact?: boolean }) {
+type MarketplaceProps = {
+  compact?: boolean;
+  authenticated?: boolean;
+};
+
+export function Marketplace({ compact = false, authenticated = false }: MarketplaceProps) {
   const router = useRouter();
   const [schools, setSchools] = useState<ApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +70,8 @@ export function Marketplace({ compact = false }: { compact?: boolean }) {
       <section className="mt-7 grid gap-5 md:grid-cols-2">
         {schools.map((school, index) => {
           const schoolId = cleanValue(text(school, "id", "_id", "school_id", "schoolId"));
-          const detailsHref = schoolId ? `/schools/${schoolId}` : "/schools";
+          const detailsPath = schoolId ? `/customer/marketplace/${schoolId}` : "/customer/marketplace";
+          const detailsHref = authenticated ? detailsPath : loginRedirectHref(detailsPath);
 
           return (
             <div
@@ -98,7 +104,7 @@ export function Marketplace({ compact = false }: { compact?: boolean }) {
 
                   <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                     <p className="text-xs font-semibold uppercase text-slate-500">Courses shown inside school details</p>
-                    <Button href={detailsHref} variant="dark" className="min-h-10 px-4 py-2" onClick={() => undefined}>View details</Button>
+                    <Button href={detailsHref} variant="dark" className="min-h-10 px-4 py-2">View details</Button>
                   </div>
                 </div>
               </Card>
@@ -108,6 +114,10 @@ export function Marketplace({ compact = false }: { compact?: boolean }) {
       </section>
     </div>
   );
+}
+
+function loginRedirectHref(redirectPath: string) {
+  return `/login?redirect=${encodeURIComponent(redirectPath)}`;
 }
 
 function MetricCard({ label, value, tone }: { label: string; value: string | number; tone: "blue" | "green" | "amber" }) {

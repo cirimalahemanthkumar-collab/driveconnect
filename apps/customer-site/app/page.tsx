@@ -139,6 +139,8 @@ function PublicSchoolCard({ school }: { school: FeaturedSchool }) {
   const startingPrice = readPositiveNumber(school.starting_price ?? school.startingPrice);
   const courseCount = Number(school.course_count ?? school.courseCount ?? 0);
   const pickup = Boolean(school.pickup_drop_available ?? school.pickupDropAvailable);
+  const schoolId = String(school.id ?? "").trim();
+  const detailsPath = schoolId ? `/customer/marketplace/${schoolId}` : "/customer/marketplace";
 
   return (
     <Card className="flex h-full flex-col justify-between">
@@ -158,10 +160,14 @@ function PublicSchoolCard({ school }: { school: FeaturedSchool }) {
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
         <p className="text-sm text-slate-500">Starts from <span className="font-black text-slate-950">{startingPrice ? money(startingPrice) : "New"}</span></p>
-        <Button href={`/schools/${school.id}`} variant="dark" className="min-h-10 px-4 py-2">View school</Button>
+        <Button href={loginRedirectHref(detailsPath)} variant="dark" className="min-h-10 px-4 py-2">View school</Button>
       </div>
     </Card>
   );
+}
+
+function loginRedirectHref(redirectPath: string) {
+  return `/login?redirect=${encodeURIComponent(redirectPath)}`;
 }
 
 function readPositiveNumber(value: unknown) {

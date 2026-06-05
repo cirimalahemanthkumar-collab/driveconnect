@@ -1,6 +1,6 @@
-import SchoolDetailsClient from "./school-details-client";
+import { redirect } from "next/navigation";
 
 export default async function SchoolDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <SchoolDetailsClient schoolId={id} />;
+  redirect(`/login?redirect=${encodeURIComponent(`/customer/marketplace/${id}`)}`);
 }
