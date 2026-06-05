@@ -289,4 +289,27 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+export function EmptyState({
+  children,
+  title = "Nothing here yet",
+  description,
+  className = "",
+}: {
+  children?: string;
+  title?: string;
+  description?: string;
+  className?: string;
+}) {
+  const message =
+    children ||
+    description ||
+    "New records will appear here as your DriveConnect activity grows.";
+
+  return (
+    <div className={`rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center ${className}`}>
+      <p className="text-lg font-black text-slate-950">{title}</p>
+      <p className="mt-2 text-sm text-slate-500">{message}</p>
+    </div>
+  );
+}
 
