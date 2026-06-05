@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, StatusBadge } from "@/components/ui";
+import { Button, StatusBadge } from "../../../components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../../../lib/api";
 import { API_ENDPOINTS } from "../../../lib/endpoints";

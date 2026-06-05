@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, DashboardStatCard, StatusBadge } from "@/components/ui";
+import { Button, DashboardStatCard, StatusBadge } from "../../../components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { API_ENDPOINTS } from "../../../lib/endpoints";
 import { asList, asRecord, dateText, money, text } from "../../../lib/records";
