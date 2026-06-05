@@ -13,22 +13,52 @@ async function getSchoolByOwner(userId) {
   return result.rows[0] || null;
 }
 
+const additionalDocumentTypes = [
+  "VEHICLE_RC",
+  "INSURANCE",
+  "POLLUTION_CERTIFICATE",
+  "INSTRUCTOR_LICENSE",
+  "RENEWED_LICENSE",
+  "OTHER",
+];
+
+function normalizeAdditionalDocumentType(documentType) {
+  const normalized = String(documentType || "").trim().toUpperCase();
+  return additionalDocumentTypes.includes(normalized) ? normalized : null;
+}
+
+function cleanOptionalText(value) {
+  const cleaned = String(value || "").trim();
+  return cleaned || null;
+}
+
 const uploadSchoolDocument = async (req, res) => {
   try {
     const {
       document_type,
       document_number,
       document_url,
+      notes,
       file_name,
       file_type,
       file_size_bytes,
       expiry_date,
     } = req.body;
 
-    if (!document_type || !document_url) {
+    const normalizedDocumentType = normalizeAdditionalDocumentType(document_type);
+    const documentUrl = cleanOptionalText(document_url);
+
+    if (!document_type || !documentUrl) {
       return res.status(400).json({
         success: false,
         message: "Document type and document URL are required",
+      });
+    }
+
+    if (!normalizedDocumentType) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid document type. Use one of: ${additionalDocumentTypes.join(", ")}`,
       });
     }
 
@@ -51,20 +81,26 @@ const uploadSchoolDocument = async (req, res) => {
         file_name,
         file_type,
         file_size_bytes,
+        notes,
         status,
         expiry_date
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8)
-       RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', $9)
+       RETURNING *,
+        document_type AS "documentType",
+        document_url AS "documentUrl",
+        file_name AS "fileName",
+        uploaded_at AS "uploadedAt"`,
       [
         school.id,
-        document_type,
-        document_number || null,
-        document_url,
-        file_name || null,
-        file_type || null,
+        normalizedDocumentType,
+        cleanOptionalText(document_number),
+        documentUrl,
+        cleanOptionalText(file_name),
+        cleanOptionalText(file_type),
         file_size_bytes || null,
-        expiry_date || null,
+        cleanOptionalText(notes),
+        cleanOptionalText(expiry_date),
       ]
     );
 
@@ -76,7 +112,7 @@ const uploadSchoolDocument = async (req, res) => {
        WHERE role IN ('ADMIN', 'SUPER_ADMIN')`,
       [
         "New School Document Uploaded",
-        `${school.school_name} uploaded a new document: ${document_type}`,
+        `${school.school_name} uploaded a new document: ${normalizedDocumentType}`,
         "DOCUMENT",
       ]
     );
@@ -108,7 +144,11 @@ const getMySchoolDocuments = async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT *
+      `SELECT *,
+        document_type AS "documentType",
+        document_url AS "documentUrl",
+        file_name AS "fileName",
+        uploaded_at AS "uploadedAt"
        FROM school_documents
        WHERE school_id = $1
        ORDER BY uploaded_at DESC`,
@@ -137,7 +177,12 @@ const getAdminSchoolDocuments = async (req, res) => {
     let query = `
       SELECT
         sd.*,
+        sd.document_type AS "documentType",
+        sd.document_url AS "documentUrl",
+        sd.file_name AS "fileName",
+        sd.uploaded_at AS "uploadedAt",
         ds.school_name,
+        ds.school_name AS "schoolName",
         ds.city,
         ds.status AS school_status,
         u.full_name AS owner_name,

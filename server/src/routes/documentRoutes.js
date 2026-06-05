@@ -14,14 +14,14 @@ const router = express.Router();
 router.post(
   "/partner/school",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   uploadSchoolDocument
 );
 
 router.get(
   "/partner/school",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   getMySchoolDocuments
 );
 
