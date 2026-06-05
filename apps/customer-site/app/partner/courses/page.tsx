@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button, Card, Input, StatusBadge } from "../../../../web/components/ui";
+import { Button, Card, Input, StatusBadge } from "../../../components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../../../lib/api";
 import { API_ENDPOINTS } from "../../../lib/endpoints";
