@@ -48,28 +48,28 @@ router.patch(
 router.get(
   "/vehicles",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   getVehicles
 );
 
 router.post(
   "/vehicles",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   createVehicle
 );
 
 router.put(
   "/vehicles/:vehicleId",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   updateVehicle
 );
 
 router.patch(
   "/vehicles/:vehicleId/status",
   protect,
-  allowRoles("SCHOOL_OWNER"),
+  allowRoles("SCHOOL_OWNER", "PARTNER"),
   updateVehicleStatus
 );
 

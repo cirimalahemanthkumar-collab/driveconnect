@@ -37,6 +37,40 @@ async function getApprovedSchool(userId) {
   return { school };
 }
 
+const allowedVehicleTypes = ["TWO_WHEELER", "CAR", "HEAVY_VEHICLE"];
+const allowedTransmissions = ["MANUAL", "AUTOMATIC", "BOTH"];
+const allowedFuelTypes = ["PETROL", "DIESEL", "CNG", "ELECTRIC"];
+
+function normalizeVehicleType(vehicleType) {
+  switch (String(vehicleType || "").trim().toUpperCase()) {
+    case "FOUR_WHEELER":
+    case "CAR":
+      return "CAR";
+    case "TWO_WHEELER":
+      return "TWO_WHEELER";
+    case "HEAVY_VEHICLE":
+      return "HEAVY_VEHICLE";
+    default:
+      return null;
+  }
+}
+
+function normalizeUpperEnum(value, allowedValues) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return allowedValues.includes(normalized) ? normalized : null;
+}
+
+function parseOptionalBoolean(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "boolean") return value;
+
+  const normalized = String(value).trim().toUpperCase();
+  if (["ACTIVE", "TRUE", "1", "YES"].includes(normalized)) return true;
+  if (["INACTIVE", "FALSE", "0", "NO"].includes(normalized)) return false;
+
+  return null;
+}
+
 // =========================
 // INSTRUCTORS
 // =========================
@@ -298,8 +332,12 @@ const createVehicle = async (req, res) => {
     const {
       instructor_id,
       vehicle_number,
+      registration_number,
       vehicle_type,
       transmission,
+      model,
+      fuel_type,
+      is_active,
       vehicle_model,
       manufacturer,
       insurance_valid_until,
@@ -307,27 +345,49 @@ const createVehicle = async (req, res) => {
       fitness_valid_until,
     } = req.body;
 
-    if (!vehicle_number || !vehicle_type || !transmission) {
+    const vehicleNumber = vehicle_number || registration_number;
+    const vehicleModel = model || vehicle_model;
+
+    if (!vehicleNumber || !vehicle_type || !vehicleModel || !transmission || !fuel_type) {
       return res.status(400).json({
         success: false,
-        message: "Vehicle number, vehicle type, and transmission are required",
+        message: "Vehicle number, vehicle type, model, transmission, and fuel type are required",
       });
     }
 
-    const allowedVehicleTypes = ["TWO_WHEELER", "CAR", "HEAVY_VEHICLE"];
-    const allowedTransmissions = ["MANUAL", "AUTOMATIC"];
+    const normalizedVehicleType = normalizeVehicleType(vehicle_type);
 
-    if (!allowedVehicleTypes.includes(vehicle_type)) {
+    if (!normalizedVehicleType) {
       return res.status(400).json({
         success: false,
-        message: "Invalid vehicle type",
+        message: `Invalid vehicle type. Use ${allowedVehicleTypes.join(", ")}.`,
       });
     }
 
-    if (!allowedTransmissions.includes(transmission)) {
+    const normalizedTransmission = normalizeUpperEnum(transmission, allowedTransmissions);
+
+    if (!normalizedTransmission) {
       return res.status(400).json({
         success: false,
-        message: "Invalid transmission type",
+        message: `Invalid transmission type. Use ${allowedTransmissions.join(", ")}.`,
+      });
+    }
+
+    const normalizedFuelType = normalizeUpperEnum(fuel_type, allowedFuelTypes);
+
+    if (!normalizedFuelType) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid fuel type. Use ${allowedFuelTypes.join(", ")}.`,
+      });
+    }
+
+    const activeStatus = parseOptionalBoolean(is_active);
+
+    if (activeStatus === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Vehicle status must be active or inactive",
       });
     }
 
@@ -365,25 +425,28 @@ const createVehicle = async (req, res) => {
         vehicle_type,
         transmission,
         vehicle_model,
+        fuel_type,
         manufacturer,
         insurance_valid_until,
         pollution_valid_until,
         fitness_valid_until,
         is_active
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         school.id,
         instructor_id || null,
-        vehicle_number,
-        vehicle_type,
-        transmission,
-        vehicle_model || null,
+        vehicleNumber,
+        normalizedVehicleType,
+        normalizedTransmission,
+        vehicleModel,
+        normalizedFuelType,
         manufacturer || null,
         insurance_valid_until || null,
         pollution_valid_until || null,
         fitness_valid_until || null,
+        activeStatus ?? true,
       ]
     );
 
@@ -416,14 +479,64 @@ const updateVehicle = async (req, res) => {
     const {
       instructor_id,
       vehicle_number,
+      registration_number,
       vehicle_type,
       transmission,
+      model,
+      fuel_type,
+      is_active,
       vehicle_model,
       manufacturer,
       insurance_valid_until,
       pollution_valid_until,
       fitness_valid_until,
     } = req.body;
+
+    const vehicleNumber = vehicle_number || registration_number;
+    const vehicleModel = model || vehicle_model;
+
+    if (!vehicleNumber || !vehicle_type || !vehicleModel || !transmission || !fuel_type) {
+      return res.status(400).json({
+        success: false,
+        message: "Vehicle number, vehicle type, model, transmission, and fuel type are required",
+      });
+    }
+
+    const normalizedVehicleType = normalizeVehicleType(vehicle_type);
+
+    if (!normalizedVehicleType) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid vehicle type. Use ${allowedVehicleTypes.join(", ")}.`,
+      });
+    }
+
+    const normalizedTransmission = normalizeUpperEnum(transmission, allowedTransmissions);
+
+    if (!normalizedTransmission) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid transmission type. Use ${allowedTransmissions.join(", ")}.`,
+      });
+    }
+
+    const normalizedFuelType = normalizeUpperEnum(fuel_type, allowedFuelTypes);
+
+    if (!normalizedFuelType) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid fuel type. Use ${allowedFuelTypes.join(", ")}.`,
+      });
+    }
+
+    const activeStatus = parseOptionalBoolean(is_active);
+
+    if (activeStatus === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Vehicle status must be active or inactive",
+      });
+    }
 
     const { school, error } = await getApprovedSchool(req.user.id);
 
@@ -458,23 +571,27 @@ const updateVehicle = async (req, res) => {
         vehicle_type = $3,
         transmission = $4,
         vehicle_model = $5,
-        manufacturer = $6,
-        insurance_valid_until = $7,
-        pollution_valid_until = $8,
-        fitness_valid_until = $9,
+        fuel_type = $6,
+        manufacturer = $7,
+        insurance_valid_until = $8,
+        pollution_valid_until = $9,
+        fitness_valid_until = $10,
+        is_active = COALESCE($11, is_active),
         updated_at = NOW()
-       WHERE id = $10 AND school_id = $11
+       WHERE id = $12 AND school_id = $13
        RETURNING *`,
       [
         instructor_id || null,
-        vehicle_number,
-        vehicle_type,
-        transmission,
-        vehicle_model || null,
+        vehicleNumber,
+        normalizedVehicleType,
+        normalizedTransmission,
+        vehicleModel,
+        normalizedFuelType,
         manufacturer || null,
         insurance_valid_until || null,
         pollution_valid_until || null,
         fitness_valid_until || null,
+        activeStatus,
         vehicleId,
         school.id,
       ]
@@ -514,6 +631,15 @@ const updateVehicleStatus = async (req, res) => {
     const { vehicleId } = req.params;
     const { is_active } = req.body;
 
+    const activeStatus = parseOptionalBoolean(is_active);
+
+    if (activeStatus === undefined || activeStatus === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Vehicle active status is required",
+      });
+    }
+
     const { school, error } = await getApprovedSchool(req.user.id);
 
     if (error) {
@@ -529,7 +655,7 @@ const updateVehicleStatus = async (req, res) => {
            updated_at = NOW()
        WHERE id = $2 AND school_id = $3
        RETURNING *`,
-      [is_active, vehicleId, school.id]
+      [activeStatus, vehicleId, school.id]
     );
 
     if (result.rows.length === 0) {
