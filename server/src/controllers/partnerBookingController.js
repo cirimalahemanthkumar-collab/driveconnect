@@ -1,5 +1,42 @@
 const pool = require("../db");
 
+const partnerBookingSelect = `
+  b.id,
+  b.id AS booking_id,
+  b.customer_user_id,
+  b.school_id,
+  b.course_id,
+  b.booking_status,
+  b.booking_status AS status,
+  b.preferred_start_date,
+  b.preferred_start_date AS requested_date,
+  NULL::text AS requested_time,
+  ds.pickup_drop_available AS pickup_required,
+  NULL::text AS pickup_address,
+  b.created_at,
+  b.created_at AS "createdAt",
+  b.updated_at,
+  u.full_name AS customer_name,
+  u.full_name AS "customerName",
+  u.email AS customer_email,
+  u.email AS "customerEmail",
+  u.phone AS customer_phone,
+  u.phone AS "customerPhone",
+  ds.school_name,
+  ds.school_name AS "schoolName",
+  c.course_name,
+  c.course_name AS "courseName",
+  c.course_type,
+  c.course_type AS "courseType",
+  c.vehicle_type,
+  c.vehicle_type AS "vehicleType",
+  c.transmission,
+  c.duration_days,
+  c.duration_days AS "durationDays",
+  c.total_sessions,
+  c.total_sessions AS "totalSessions"
+`;
+
 async function getSchoolByOwner(userId) {
   const result = await pool.query(
     `SELECT *
@@ -32,19 +69,12 @@ const getPartnerBookings = async (req, res) => {
 
     let query = `
       SELECT
-        b.*,
-        c.course_name,
-        c.vehicle_type,
-        c.transmission,
-        c.duration_days,
-        c.total_sessions,
-        u.full_name AS customer_name,
-        u.email AS customer_email,
-        u.phone AS customer_phone
+        ${partnerBookingSelect}
       FROM bookings b
       JOIN courses c ON b.course_id = c.id
+      JOIN driving_schools ds ON COALESCE(b.school_id, c.school_id) = ds.id
       JOIN users u ON b.customer_user_id = u.id
-      WHERE b.school_id = $1
+      WHERE ds.id = $1
     `;
 
     const values = [school.id];
@@ -88,7 +118,7 @@ const getPartnerBookingById = async (req, res) => {
 
     const result = await pool.query(
       `SELECT
-        b.*,
+        ${partnerBookingSelect},
         c.course_name,
         c.description AS course_description,
         c.vehicle_type,
@@ -100,8 +130,9 @@ const getPartnerBookingById = async (req, res) => {
         u.phone AS customer_phone
        FROM bookings b
        JOIN courses c ON b.course_id = c.id
+       JOIN driving_schools ds ON COALESCE(b.school_id, c.school_id) = ds.id
        JOIN users u ON b.customer_user_id = u.id
-       WHERE b.id = $1 AND b.school_id = $2`,
+       WHERE b.id = $1 AND ds.id = $2`,
       [bookingId, school.id]
     );
 
@@ -131,11 +162,12 @@ const updatePartnerBookingStatus = async (req, res) => {
 
   try {
     const { bookingId } = req.params;
-    const { booking_status, rejection_reason } = req.body;
+    const { booking_status, status, rejection_reason } = req.body;
+    const nextStatus = String(booking_status || status || "").trim().toUpperCase();
 
     const allowedStatuses = ["ACCEPTED", "REJECTED"];
 
-    if (!allowedStatuses.includes(booking_status)) {
+    if (!allowedStatuses.includes(nextStatus)) {
       return res.status(400).json({
         success: false,
         message: "Booking status must be ACCEPTED or REJECTED",
@@ -171,8 +203,9 @@ const updatePartnerBookingStatus = async (req, res) => {
         u.full_name AS customer_name
        FROM bookings b
        JOIN courses c ON b.course_id = c.id
+       JOIN driving_schools ds ON COALESCE(b.school_id, c.school_id) = ds.id
        JOIN users u ON b.customer_user_id = u.id
-       WHERE b.id = $1 AND b.school_id = $2`,
+       WHERE b.id = $1 AND ds.id = $2`,
       [bookingId, school.id]
     );
 
@@ -199,7 +232,7 @@ const updatePartnerBookingStatus = async (req, res) => {
     let updateQuery;
     let updateValues;
 
-    if (booking_status === "ACCEPTED") {
+    if (nextStatus === "ACCEPTED") {
       updateQuery = `
         UPDATE bookings
         SET booking_status = 'ACCEPTED',
@@ -234,9 +267,9 @@ const updatePartnerBookingStatus = async (req, res) => {
       [
         bookingId,
         oldBooking.booking_status,
-        booking_status,
+        nextStatus,
         req.user.id,
-        booking_status === "ACCEPTED"
+        nextStatus === "ACCEPTED"
           ? "Booking accepted by driving school"
           : rejection_reason || "Booking rejected by driving school",
       ]
@@ -248,10 +281,10 @@ const updatePartnerBookingStatus = async (req, res) => {
        VALUES ($1, $2, $3, $4)`,
       [
         oldBooking.customer_user_id,
-        booking_status === "ACCEPTED"
+        nextStatus === "ACCEPTED"
           ? "Booking Accepted"
           : "Booking Rejected",
-        booking_status === "ACCEPTED"
+        nextStatus === "ACCEPTED"
           ? `Your booking for ${oldBooking.course_name} has been accepted by ${school.school_name}.`
           : `Your booking for ${oldBooking.course_name} has been rejected by ${school.school_name}.`,
         "BOOKING",
@@ -283,8 +316,12 @@ const updatePartnerBookingStatus = async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Booking ${booking_status.toLowerCase()} successfully`,
-      booking: updatedBooking,
+      message: `Booking ${nextStatus.toLowerCase()} successfully`,
+      booking: {
+        ...updatedBooking,
+        booking_id: updatedBooking.id,
+        status: updatedBooking.booking_status,
+      },
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -334,8 +371,9 @@ const completePartnerBooking = async (req, res) => {
         u.full_name AS customer_name
        FROM bookings b
        JOIN courses c ON b.course_id = c.id
+       JOIN driving_schools ds ON COALESCE(b.school_id, c.school_id) = ds.id
        JOIN users u ON b.customer_user_id = u.id
-       WHERE b.id = $1 AND b.school_id = $2`,
+       WHERE b.id = $1 AND ds.id = $2`,
       [bookingId, school.id]
     );
 
@@ -350,12 +388,12 @@ const completePartnerBooking = async (req, res) => {
 
     const oldBooking = bookingResult.rows[0];
 
-    if (oldBooking.booking_status !== "ONGOING") {
+    if (!["ACCEPTED", "ONGOING"].includes(oldBooking.booking_status)) {
       await client.query("ROLLBACK");
 
       return res.status(400).json({
         success: false,
-        message: `Only ONGOING bookings can be completed. Current status is ${oldBooking.booking_status}`,
+        message: `Only ACCEPTED or ONGOING bookings can be completed. Current status is ${oldBooking.booking_status}`,
       });
     }
 
@@ -399,7 +437,11 @@ const completePartnerBooking = async (req, res) => {
     return res.json({
       success: true,
       message: "Booking marked as completed successfully",
-      booking: updatedBooking,
+      booking: {
+        ...updatedBooking,
+        booking_id: updatedBooking.id,
+        status: updatedBooking.booking_status,
+      },
     });
   } catch (error) {
     await client.query("ROLLBACK");

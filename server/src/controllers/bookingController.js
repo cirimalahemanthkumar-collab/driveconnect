@@ -1,5 +1,42 @@
 const pool = require("../db");
 
+const bookingListSelect = `
+  b.id,
+  b.id AS booking_id,
+  b.customer_user_id,
+  b.school_id,
+  b.course_id,
+  b.booking_status,
+  b.booking_status AS status,
+  b.preferred_start_date,
+  b.preferred_start_date AS requested_date,
+  NULL::text AS requested_time,
+  ds.pickup_drop_available AS pickup_required,
+  NULL::text AS pickup_address,
+  b.created_at,
+  b.created_at AS "createdAt",
+  b.updated_at,
+  customer.full_name AS customer_name,
+  customer.full_name AS "customerName",
+  customer.email AS customer_email,
+  customer.email AS "customerEmail",
+  customer.phone AS customer_phone,
+  customer.phone AS "customerPhone",
+  ds.school_name,
+  ds.school_name AS "schoolName",
+  c.course_name,
+  c.course_name AS "courseName",
+  c.course_type,
+  c.course_type AS "courseType",
+  c.vehicle_type,
+  c.vehicle_type AS "vehicleType",
+  c.transmission,
+  c.duration_days,
+  c.duration_days AS "durationDays",
+  c.total_sessions,
+  c.total_sessions AS "totalSessions"
+`;
+
 function calculateAmounts(course) {
   const baseAmount = Number(course.price);
   const discountPrice = course.discount_price
@@ -28,9 +65,17 @@ const createBooking = async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const { course_id, preferred_start_date } = req.body;
+    const {
+      course_id,
+      preferred_start_date,
+      requested_date,
+      preferred_date,
+      requested_time,
+      preferred_time,
+    } = req.body;
+    const preferredStartDate = preferred_start_date || requested_date || preferred_date;
 
-    if (!course_id || !preferred_start_date) {
+    if (!course_id || !preferredStartDate) {
       return res.status(400).json({
         success: false,
         message: "Course ID and preferred start date are required",
@@ -90,7 +135,7 @@ const createBooking = async (req, res) => {
         school_id,
         course_id,
         booking_status,
-        preferred_start_date,
+        preferredStartDate,
         base_amount,
         discount_amount,
         tax_amount,
@@ -147,7 +192,15 @@ const createBooking = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Booking created successfully. Waiting for driving school approval.",
-      booking,
+      booking: {
+        ...booking,
+        booking_id: booking.id,
+        status: booking.booking_status,
+        requested_date: booking.preferred_start_date,
+        requested_time: requested_time || preferred_time || null,
+        school_name: course.school_name,
+        course_name: course.course_name,
+      },
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -167,20 +220,16 @@ const getMyBookings = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        b.*,
-        c.course_name,
-        c.vehicle_type,
-        c.transmission,
-        c.duration_days,
-        c.total_sessions,
-        ds.school_name,
+        ${bookingListSelect},
         ds.phone AS school_phone,
+        ds.email AS school_email,
         ds.address AS school_address,
         ds.city AS school_city,
         ds.state AS school_state
        FROM bookings b
        JOIN courses c ON b.course_id = c.id
-       JOIN driving_schools ds ON b.school_id = ds.id
+       JOIN driving_schools ds ON COALESCE(b.school_id, c.school_id) = ds.id
+       JOIN users customer ON b.customer_user_id = customer.id
        WHERE b.customer_user_id = $1
        ORDER BY b.created_at DESC`,
       [req.user.id]
@@ -207,7 +256,7 @@ const getBookingById = async (req, res) => {
 
     const result = await pool.query(
       `SELECT
-        b.*,
+        ${bookingListSelect},
         c.course_name,
         c.description AS course_description,
         c.vehicle_type,
@@ -222,7 +271,8 @@ const getBookingById = async (req, res) => {
         ds.state AS school_state
        FROM bookings b
        JOIN courses c ON b.course_id = c.id
-       JOIN driving_schools ds ON b.school_id = ds.id
+       JOIN driving_schools ds ON COALESCE(b.school_id, c.school_id) = ds.id
+       JOIN users customer ON b.customer_user_id = customer.id
        WHERE b.id = $1 AND b.customer_user_id = $2`,
       [bookingId, req.user.id]
     );
