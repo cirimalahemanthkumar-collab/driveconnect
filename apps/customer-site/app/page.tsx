@@ -1,6 +1,8 @@
 "use client";
 
-import { Badge, Button, Card, DashboardStatCard } from "../components/ui";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { Badge, Button, Card, DashboardStatCard, Input } from "../components/ui";
 import { LoadingState } from "../components/portal-ui";
 import { useApiResource } from "../hooks/use-api-resource";
 import { API_ENDPOINTS } from "../lib/endpoints";
@@ -53,6 +55,7 @@ export default function LandingPage() {
   return (
     <main>
       <Hero />
+      <HeroSearch />
       {summaryResource.loading ? <LoadingState label="Loading marketplace data..." /> : null}
       {!summaryResource.loading ? (
         <>
@@ -132,6 +135,73 @@ function Hero() {
       </div>
     </section>
   );
+}
+
+function HeroSearch() {
+  const router = useRouter();
+  const [location, setLocation] = useState("");
+  const [message, setMessage] = useState("");
+  const [usingLocation, setUsingLocation] = useState(false);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    router.push(schoolsHref({ location }));
+  }
+
+  function useCurrentLocation() {
+    if (!("geolocation" in navigator)) {
+      setMessage("Location access is not available in this browser.");
+      return;
+    }
+
+    setUsingLocation(true);
+    setMessage("");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUsingLocation(false);
+        router.push(schoolsHref({ lat: latitude, lng: longitude }));
+      },
+      () => {
+        setUsingLocation(false);
+        setMessage("Location permission was denied. Enter a city or locality instead.");
+      },
+      { enableHighAccuracy: false, timeout: 8000 }
+    );
+  }
+
+  return (
+    <section className="relative z-10 mx-auto -mt-10 max-w-7xl px-4">
+      <Card className="border-blue-100 shadow-xl">
+        <form className="grid gap-3 md:grid-cols-[1fr_auto_auto]" onSubmit={submit}>
+          <Input
+            value={location}
+            onChange={(event) => setLocation(event.target.value)}
+            placeholder="Enter your city or locality"
+            aria-label="Enter your city or locality"
+          />
+          <Button type="submit" variant="dark">Find schools</Button>
+          <Button type="button" variant="ghost" onClick={useCurrentLocation} disabled={usingLocation}>
+            {usingLocation ? "Locating..." : "Use my location"}
+          </Button>
+        </form>
+        {message ? <p className="mt-3 text-sm font-semibold text-amber-700">{message}</p> : null}
+      </Card>
+    </section>
+  );
+}
+
+function schoolsHref({ location, lat, lng }: { location?: string; lat?: number; lng?: number }) {
+  const params = new URLSearchParams();
+  const cleanLocation = location?.trim();
+  if (cleanLocation) params.set("location", cleanLocation);
+  if (typeof lat === "number" && typeof lng === "number" && Number.isFinite(lat) && Number.isFinite(lng)) {
+    params.set("lat", String(lat));
+    params.set("lng", String(lng));
+  }
+
+  const query = params.toString();
+  return query ? `/schools?${query}` : "/schools";
 }
 
 function PublicSchoolCard({ school }: { school: FeaturedSchool }) {
