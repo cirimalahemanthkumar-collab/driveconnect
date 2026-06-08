@@ -2,7 +2,7 @@ const bcrypt = require("bcrypt");
 const { randomInt } = require("crypto");
 const jwt = require("jsonwebtoken");
 const pool = require("../db");
-const { sendRegistrationOtpEmail } = require("../utils/email");
+const { emailErrorDetails, sendRegistrationOtpEmail } = require("../utils/email");
 
 const allowedPublicRoles = ["CUSTOMER", "SCHOOL_OWNER"];
 const otpExpiryMs = 10 * 60 * 1000;
@@ -73,7 +73,7 @@ const registerStart = async (req, res) => {
     try {
       await sendRegistrationOtpEmail(input.email, otp);
     } catch (error) {
-      console.error("Send registration OTP error:", error);
+      console.error("Send registration OTP error:", emailErrorDetails(error));
       await pool.query("DELETE FROM registration_otps WHERE email = $1", [input.email]);
 
       return res.status(500).json({
@@ -274,7 +274,7 @@ const registerResend = async (req, res) => {
     try {
       await sendRegistrationOtpEmail(email, otp);
     } catch (error) {
-      console.error("Resend registration OTP error:", error);
+      console.error("Resend registration OTP error:", emailErrorDetails(error));
 
       return res.status(500).json({
         success: false,

@@ -5,8 +5,8 @@ function boolFromEnv(value) {
 }
 
 function smtpPort() {
-  const port = Number(process.env.SMTP_PORT || 587);
-  return Number.isFinite(port) ? port : 587;
+  const port = Number(process.env.SMTP_PORT || 465);
+  return Number.isFinite(port) ? port : 465;
 }
 
 function smtpAuth() {
@@ -27,7 +27,20 @@ function createTransporter() {
     port: smtpPort(),
     secure: boolFromEnv(process.env.SMTP_SECURE),
     auth: smtpAuth(),
+    family: 4,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
+}
+
+function emailErrorDetails(error) {
+  return {
+    message: error?.message,
+    code: error?.code,
+    command: error?.command,
+    responseCode: error?.responseCode,
+  };
 }
 
 async function sendRegistrationOtpEmail(email, otp) {
@@ -52,5 +65,6 @@ async function sendRegistrationOtpEmail(email, otp) {
 }
 
 module.exports = {
+  emailErrorDetails,
   sendRegistrationOtpEmail,
 };
