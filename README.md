@@ -254,7 +254,9 @@ Required values are listed in `.env.example`.
 - `UPLOAD_PROVIDER`: `local` for development or `cloudinary` for production.
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`: Cloudinary signed-upload credentials.
 - `GOOGLE_MAPS_API_KEY`: maps-ready placeholder.
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`: required on Render for registration email OTP delivery.
+- `EMAIL_PROVIDER`: set to `brevo_api` on Render for registration email OTP delivery.
+- `BREVO_API_KEY`, `BREVO_SENDER_NAME`, `BREVO_SENDER_EMAIL`: Brevo Transactional Email API credentials and verified sender details.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`: SMTP fallback values if `EMAIL_PROVIDER` is not `brevo_api`.
 
 Do not put `NODE_ENV` in `.env`; Next and npm set it for the relevant command.
 
