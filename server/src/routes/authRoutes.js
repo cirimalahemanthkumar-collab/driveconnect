@@ -1,10 +1,19 @@
 const express = require("express");
-const { register, login } = require("../controllers/authController");
+const {
+  register,
+  registerStart,
+  registerVerify,
+  registerResend,
+  login,
+} = require("../controllers/authController");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 router.post("/register", register);
+router.post("/register/start", registerStart);
+router.post("/register/verify", registerVerify);
+router.post("/register/resend", registerResend);
 router.post("/login", login);
 
 router.get("/me", protect, (req, res) => {

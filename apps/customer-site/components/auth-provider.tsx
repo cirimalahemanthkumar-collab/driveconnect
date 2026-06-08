@@ -31,12 +31,20 @@ type RegisterInput = {
   schoolName?: string;
 };
 
+type VerifyRegistrationInput = {
+  email: string;
+  otp: string;
+};
+
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
   message: string;
   login: (input: LoginInput) => Promise<AuthUser>;
   register: (input: RegisterInput) => Promise<AuthUser>;
+  startRegistration: (input: RegisterInput) => Promise<{ email: string; message: string }>;
+  verifyRegistration: (input: VerifyRegistrationInput) => Promise<AuthUser>;
+  resendRegistrationOtp: (email: string) => Promise<{ message: string }>;
   logout: (message?: string) => void;
   destinationFor: (role?: AppRole) => string;
 };
@@ -82,9 +90,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function authenticate(path: string, input: LoginInput | RegisterInput) {
     setMessage("");
     const data = path === API_ENDPOINTS.auth.register
-      ? { ...input, fullName: (input as RegisterInput).name }
+      ? registrationPayload(input as RegisterInput)
       : input;
     const payload = await apiRequest<unknown>({ url: path, method: "POST", data });
+    return completeAuthentication(payload);
+  }
+
+  async function startRegistration(input: RegisterInput) {
+    setMessage("");
+    const payload = await apiRequest<{ email?: string; message?: string }>({
+      url: API_ENDPOINTS.auth.registerStart,
+      method: "POST",
+      data: registrationPayload(input)
+    });
+
+    return {
+      email: payload.email || input.email.trim().toLowerCase(),
+      message: payload.message || "OTP sent to your email."
+    };
+  }
+
+  async function verifyRegistration(input: VerifyRegistrationInput) {
+    setMessage("");
+    const payload = await apiRequest<unknown>({
+      url: API_ENDPOINTS.auth.registerVerify,
+      method: "POST",
+      data: {
+        email: input.email,
+        otp: input.otp
+      }
+    });
+    return completeAuthentication(payload);
+  }
+
+  async function resendRegistrationOtp(email: string) {
+    setMessage("");
+    const payload = await apiRequest<{ message?: string }>({
+      url: API_ENDPOINTS.auth.registerResend,
+      method: "POST",
+      data: { email }
+    });
+
+    return { message: payload.message || "OTP resent to your email." };
+  }
+
+  function completeAuthentication(payload: unknown) {
     const nextUser = extractUser(payload);
 
     try {
@@ -108,6 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     message,
     login: (input) => authenticate(API_ENDPOINTS.auth.login, input),
     register: (input) => authenticate(API_ENDPOINTS.auth.register, input),
+    startRegistration,
+    verifyRegistration,
+    resendRegistrationOtp,
     logout,
     destinationFor
   }), [loading, message, user]);
@@ -123,6 +176,17 @@ export function useAuth() {
 
 export function destinationFor(role?: AppRole) {
   return role === "SCHOOL_OWNER" ? "/partner/dashboard" : "/customer/dashboard";
+}
+
+function registrationPayload(input: RegisterInput) {
+  return {
+    full_name: input.name,
+    email: input.email,
+    phone: input.phone,
+    password: input.password,
+    role: input.role,
+    school_name: input.role === "SCHOOL_OWNER" ? input.schoolName : undefined
+  };
 }
 
 function destinationAfterAuth(role?: AppRole) {

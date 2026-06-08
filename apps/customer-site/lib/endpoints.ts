@@ -2,6 +2,9 @@ export const API_ENDPOINTS = {
   auth: {
     login: "/api/auth/login",
     register: "/api/auth/register",
+    registerStart: "/api/auth/register/start",
+    registerVerify: "/api/auth/register/verify",
+    registerResend: "/api/auth/register/resend",
     me: "/api/auth/me"
   },
   marketplace: {
