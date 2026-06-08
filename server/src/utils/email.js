@@ -1,3 +1,4 @@
+const dns = require("dns").promises;
 const nodemailer = require("nodemailer");
 
 function boolFromEnv(value) {
@@ -10,24 +11,40 @@ function smtpPort() {
 }
 
 function smtpAuth() {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return undefined;
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error("SMTP_USER and SMTP_PASS are required");
+  }
+
   return {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   };
 }
 
-function createTransporter() {
-  if (!process.env.SMTP_HOST) {
-    throw new Error("SMTP_HOST is not configured");
+async function createSmtpTransporter() {
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  let connectHost = smtpHost;
+
+  try {
+    const addresses = await dns.resolve4(smtpHost);
+    if (addresses.length > 0) {
+      connectHost = addresses[0];
+    }
+  } catch (error) {
+    console.warn("SMTP IPv4 resolve failed, falling back to host:", {
+      message: error?.message,
+      code: error?.code,
+    });
   }
 
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: connectHost,
     port: smtpPort(),
     secure: boolFromEnv(process.env.SMTP_SECURE),
     auth: smtpAuth(),
-    family: 4,
+    tls: {
+      servername: smtpHost,
+    },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
     socketTimeout: 20000,
@@ -50,7 +67,7 @@ async function sendRegistrationOtpEmail(email, otp) {
     throw new Error("SMTP_FROM or SMTP_USER is required");
   }
 
-  const transporter = createTransporter();
+  const transporter = await createSmtpTransporter();
 
   await transporter.sendMail({
     from,
