@@ -1,19 +1,20 @@
 const pool = require("../db");
+const {
+  createNotification,
+  getAccessibleNotifications,
+  markAllNotificationsRead: markAllAccessibleNotificationsRead,
+  markNotificationRead: markAccessibleNotificationRead,
+} = require("../utils/notifications");
 
 const getMyNotifications = async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT *
-       FROM notifications
-       WHERE user_id = $1
-       ORDER BY created_at DESC`,
-      [req.user.id]
-    );
+    const notifications = await getAccessibleNotifications(req.user);
 
     return res.json({
       success: true,
-      count: result.rows.length,
-      notifications: result.rows,
+      count: notifications.length,
+      unread_count: notifications.filter((notification) => !notification.is_read).length,
+      notifications,
     });
   } catch (error) {
     console.error("Get notifications error:", error);
@@ -27,17 +28,10 @@ const getMyNotifications = async (req, res) => {
 
 const markNotificationRead = async (req, res) => {
   try {
-    const { notificationId } = req.params;
+    const notificationId = req.params.notificationId || req.params.id;
+    const notification = await markAccessibleNotificationRead(notificationId, req.user);
 
-    const result = await pool.query(
-      `UPDATE notifications
-       SET is_read = true
-       WHERE id = $1 AND user_id = $2
-       RETURNING *`,
-      [notificationId, req.user.id]
-    );
-
-    if (result.rows.length === 0) {
+    if (!notification) {
       return res.status(404).json({
         success: false,
         message: "Notification not found",
@@ -47,7 +41,7 @@ const markNotificationRead = async (req, res) => {
     return res.json({
       success: true,
       message: "Notification marked as read",
-      notification: result.rows[0],
+      notification,
     });
   } catch (error) {
     console.error("Mark notification read error:", error);
@@ -61,18 +55,12 @@ const markNotificationRead = async (req, res) => {
 
 const markAllNotificationsRead = async (req, res) => {
   try {
-    const result = await pool.query(
-      `UPDATE notifications
-       SET is_read = true
-       WHERE user_id = $1 AND is_read = false
-       RETURNING *`,
-      [req.user.id]
-    );
+    const updatedCount = await markAllAccessibleNotificationsRead(req.user);
 
     return res.json({
       success: true,
       message: "All notifications marked as read",
-      updated_count: result.rows.length,
+      updated_count: updatedCount,
     });
   } catch (error) {
     console.error("Mark all notifications read error:", error);
@@ -86,39 +74,65 @@ const markAllNotificationsRead = async (req, res) => {
 
 const sendNotificationByAdmin = async (req, res) => {
   try {
-    const { user_id, title, message, type } = req.body;
+    const { user_id, recipient_role, role, title, message, body, type, entity_type, entity_id, data } = req.body;
+    const finalMessage = message || body;
+    const finalRole = recipient_role || (role && role !== "ALL" ? role : null);
 
-    if (!user_id || !title || !message) {
+    if (!title || !finalMessage || (!user_id && !finalRole && role !== "ALL")) {
       return res.status(400).json({
         success: false,
-        message: "User ID, title, and message are required",
+        message: "Title, message, and audience are required",
       });
     }
 
-    const userCheck = await pool.query(
-      `SELECT id FROM users WHERE id = $1`,
-      [user_id]
-    );
+    if (user_id) {
+      const userCheck = await pool.query(
+        `SELECT id FROM users WHERE id = $1`,
+        [user_id]
+      );
 
-    if (userCheck.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      if (userCheck.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
     }
 
-    const result = await pool.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [user_id, title, message, type || "GENERAL"]
-    );
+    const notifications = [];
+
+    if (role === "ALL") {
+      for (const audienceRole of ["CUSTOMER", "SCHOOL_OWNER", "PARTNER", "ADMIN"]) {
+        const notification = await createNotification({
+          recipientRole: audienceRole,
+          title,
+          message: finalMessage,
+          type: type || "ADMIN_ACTION",
+          entityType: entity_type || null,
+          entityId: entity_id || null,
+          data: data || {},
+        });
+        if (notification) notifications.push(notification);
+      }
+    } else {
+      const notification = await createNotification({
+        userId: user_id || null,
+        recipientRole: finalRole,
+        title,
+        message: finalMessage,
+        type: type || "ADMIN_ACTION",
+        entityType: entity_type || null,
+        entityId: entity_id || null,
+        data: data || {},
+      });
+      if (notification) notifications.push(notification);
+    }
 
     return res.status(201).json({
       success: true,
       message: "Notification sent successfully",
-      notification: result.rows[0],
+      notification: notifications[0] || null,
+      notifications,
     });
   } catch (error) {
     console.error("Send notification error:", error);

@@ -3,6 +3,7 @@ const { randomInt } = require("crypto");
 const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const { emailErrorDetails, sendRegistrationOtpEmail } = require("../utils/email");
+const { notifyAdmins, notifyUser } = require("../utils/notifications");
 
 const allowedPublicRoles = ["CUSTOMER", "SCHOOL_OWNER"];
 const otpExpiryMs = 10 * 60 * 1000;
@@ -193,10 +194,37 @@ const registerVerify = async (req, res) => {
       ]
     );
 
+    const user = userResult.rows[0];
+
+    await notifyUser(
+      user.id,
+      {
+        title: "Welcome to DriveConnect",
+        message: "Your account is ready.",
+        type: "ACCOUNT_REGISTERED",
+        entityType: "users",
+        entityId: user.id,
+        data: {
+          actionLink: user.role === "SCHOOL_OWNER" ? "/partner/dashboard" : "/customer/dashboard",
+        },
+      },
+      client
+    );
+    await notifyAdmins(
+      {
+        title: "New account registered",
+        message: `${user.full_name || user.email} registered as ${user.role}.`,
+        type: "ACCOUNT_REGISTERED",
+        entityType: "users",
+        entityId: user.id,
+        data: { actionLink: "/admin/users" },
+      },
+      client
+    );
+
     await client.query("DELETE FROM registration_otps WHERE id = $1", [pending.id]);
     await client.query("COMMIT");
 
-    const user = userResult.rows[0];
     const token = generateToken(user);
 
     return res.status(201).json({

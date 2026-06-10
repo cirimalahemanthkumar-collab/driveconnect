@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { Button, Card, Input, StatusBadge } from "../../../components/ui";
+import { useState, type ChangeEvent, type FormEvent } from "react";
+import { Button, Card, StatusBadge } from "../../../components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../../../lib/api";
 import { API_ENDPOINTS } from "../../../lib/endpoints";
@@ -10,7 +10,6 @@ import { ErrorBanner, Field, FormError, LoadingState, PageIntro, TableCard } fro
 
 type DocumentForm = {
   document_type: string;
-  document_url: string;
   notes: string;
 };
 
@@ -25,9 +24,10 @@ const additionalDocumentTypes = [
 
 const emptyForm: DocumentForm = {
   document_type: "",
-  document_url: "",
   notes: ""
 };
+const allowedDocumentTypes = new Set(["image/png", "image/jpeg", "application/pdf"]);
+const maxDocumentSizeBytes = 5 * 1024 * 1024;
 
 export default function PartnerDocumentsPage() {
   const documentsResource = useApiResource<unknown>(API_ENDPOINTS.partner.documents, []);
@@ -35,6 +35,7 @@ export default function PartnerDocumentsPage() {
   const school = asRecord(schoolResource.data);
   const documents = asList(documentsResource.data, ["documents", "items"]).filter(isAdditionalDocument);
   const [form, setForm] = useState<DocumentForm>(emptyForm);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
@@ -48,8 +49,14 @@ export default function PartnerDocumentsPage() {
     event.preventDefault();
     const payload = toPayload(form);
 
-    if (!payload.document_type || !payload.document_url) {
-      setFormError("Document type and document URL are required.");
+    if (!payload.document_type || !documentFile) {
+      setFormError("Document type and document file are required.");
+      return;
+    }
+
+    const fileError = validateDocumentFile(documentFile);
+    if (fileError) {
+      setFormError(fileError);
       return;
     }
 
@@ -57,12 +64,19 @@ export default function PartnerDocumentsPage() {
     setFormError("");
     setSuccess("");
     try {
+      const formData = new FormData();
+      formData.append("document_type", payload.document_type);
+      formData.append("notes", payload.notes);
+      formData.append("document_file", documentFile);
+
       await apiRequest({
         url: API_ENDPOINTS.partner.documents,
         method: "POST",
-        data: payload
+        data: formData,
+        headers: { "Content-Type": "multipart/form-data" }
       });
       setForm(emptyForm);
+      setDocumentFile(null);
       setSuccess("Additional document submitted for admin review.");
       await documentsResource.reload();
     } catch (requestError) {
@@ -128,14 +142,19 @@ export default function PartnerDocumentsPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Document URL">
-              <Input
-                value={form.document_url}
-                onChange={(event) => setForm((current) => ({ ...current, document_url: event.target.value }))}
-                placeholder="https://..."
-                required
-                type="url"
-              />
+            <Field label="Document file">
+              <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <input
+                  accept="image/png,image/jpeg,application/pdf"
+                  className="block w-full text-sm font-semibold text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-blue-700 hover:file:bg-blue-100"
+                  onChange={(event) => handleDocumentFile(event, setDocumentFile, setFormError)}
+                  required
+                  type="file"
+                />
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                  {documentFile ? documentFile.name : "PNG, JPEG, or PDF up to 5 MB"}
+                </p>
+              </div>
             </Field>
             <Field label="Notes" className="md:col-span-2">
               <textarea
@@ -173,9 +192,34 @@ export default function PartnerDocumentsPage() {
 function toPayload(form: DocumentForm) {
   return {
     document_type: form.document_type.trim(),
-    document_url: form.document_url.trim(),
     notes: form.notes.trim()
   };
+}
+
+function handleDocumentFile(
+  event: ChangeEvent<HTMLInputElement>,
+  setDocumentFile: (file: File | null) => void,
+  setFormError: (message: string) => void
+) {
+  const file = event.target.files?.[0] ?? null;
+  const fileError = validateDocumentFile(file);
+
+  if (fileError) {
+    event.target.value = "";
+    setDocumentFile(null);
+    setFormError(fileError);
+    return;
+  }
+
+  setFormError("");
+  setDocumentFile(file);
+}
+
+function validateDocumentFile(file: File | null) {
+  if (!file) return "";
+  if (!allowedDocumentTypes.has(file.type)) return "Only PNG, JPEG, and PDF files are allowed.";
+  if (file.size > maxDocumentSizeBytes) return "File must be less than 5 MB.";
+  return "";
 }
 
 function isAdditionalDocument(document: ApiRecord) {
@@ -183,14 +227,14 @@ function isAdditionalDocument(document: ApiRecord) {
 }
 
 function readDocumentUrl(document: ApiRecord) {
-  const value = text(document, "document_url", "documentUrl", "url");
+  const value = text(document, "document_url", "documentUrl", "url", "document_path", "documentPath");
   return value === "-" ? "" : value;
 }
 
 function getVerificationDocuments(school: ApiRecord) {
   return [
-    { label: "License document URL", url: readProfileUrl(school, "license_document_url", "licenseDocumentUrl") },
-    { label: "Owner ID proof URL", url: readProfileUrl(school, "owner_id_proof_url", "ownerIdProofUrl") }
+    { label: "License document", url: readProfileUrl(school, "license_document_url", "licenseDocumentUrl", "license_document_path", "licenseDocumentPath") },
+    { label: "Owner ID proof", url: readProfileUrl(school, "owner_id_proof_url", "ownerIdProofUrl", "owner_id_proof_path", "ownerIdProofPath") }
   ].filter((document) => document.url);
 }
 

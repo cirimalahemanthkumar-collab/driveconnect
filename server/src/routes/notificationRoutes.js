@@ -11,11 +11,8 @@ const { protect, allowRoles } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-router.get(
-  "/my",
-  protect,
-  getMyNotifications
-);
+router.get("/", protect, getMyNotifications);
+router.get("/my", protect, getMyNotifications);
 
 router.patch(
   "/:notificationId/read",

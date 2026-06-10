@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { notifyUser } = require("../utils/notifications");
 
 const allowedVehicleTypes = ["TWO_WHEELER", "CAR", "HEAVY_VEHICLE"];
 const allowedTransmissions = ["MANUAL", "AUTOMATIC", "BOTH"];
@@ -175,6 +176,15 @@ const createCourse = async (req, res) => {
       ]
     );
 
+    await notifyUser(req.user.id, {
+      title: "Course created",
+      message: `${result.rows[0].course_name} is now available for your approved school.`,
+      type: "COURSE_CREATED",
+      entityType: "courses",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/courses" },
+    });
+
     return res.status(201).json({
       success: true,
       message: "Course created successfully",
@@ -303,6 +313,15 @@ const updateCourse = async (req, res) => {
       ]
     );
 
+    await notifyUser(req.user.id, {
+      title: "Course updated",
+      message: `${result.rows[0].course_name} was updated successfully.`,
+      type: "COURSE_UPDATED",
+      entityType: "courses",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/courses" },
+    });
+
     return res.json({
       success: true,
       message: "Course updated successfully",
@@ -354,6 +373,15 @@ const updateCourseStatus = async (req, res) => {
         message: "Course not found",
       });
     }
+
+    await notifyUser(req.user.id, {
+      title: "Course status updated",
+      message: `${result.rows[0].course_name} is now ${is_active ? "active" : "inactive"}.`,
+      type: "COURSE_STATUS_UPDATED",
+      entityType: "courses",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/courses" },
+    });
 
     return res.json({
       success: true,

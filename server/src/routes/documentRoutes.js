@@ -8,6 +8,7 @@ const {
 } = require("../controllers/documentController");
 
 const { protect, allowRoles } = require("../middleware/authMiddleware");
+const { schoolDocumentUpload } = require("../middleware/documentUpload");
 
 const router = express.Router();
 
@@ -15,6 +16,7 @@ router.post(
   "/partner/school",
   protect,
   allowRoles("SCHOOL_OWNER", "PARTNER"),
+  schoolDocumentUpload,
   uploadSchoolDocument
 );
 

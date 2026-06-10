@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { notifyUser } = require("../utils/notifications");
 
 async function getSchoolByOwner(userId) {
   const result = await pool.query(
@@ -153,6 +154,15 @@ const createInstructor = async (req, res) => {
       ]
     );
 
+    await notifyUser(req.user.id, {
+      title: "Instructor added",
+      message: `${result.rows[0].full_name} was added to your school.`,
+      type: "INSTRUCTOR_CREATED",
+      entityType: "instructors",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/assets" },
+    });
+
     return res.status(201).json({
       success: true,
       message: "Instructor created successfully",
@@ -219,6 +229,15 @@ const updateInstructor = async (req, res) => {
       });
     }
 
+    await notifyUser(req.user.id, {
+      title: "Instructor updated",
+      message: `${result.rows[0].full_name} was updated successfully.`,
+      type: "INSTRUCTOR_UPDATED",
+      entityType: "instructors",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/assets" },
+    });
+
     return res.json({
       success: true,
       message: "Instructor updated successfully",
@@ -270,6 +289,15 @@ const updateInstructorStatus = async (req, res) => {
         message: "Instructor not found",
       });
     }
+
+    await notifyUser(req.user.id, {
+      title: "Instructor status updated",
+      message: `${result.rows[0].full_name} is now ${is_active ? "active" : "inactive"}.`,
+      type: "INSTRUCTOR_STATUS_UPDATED",
+      entityType: "instructors",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/assets" },
+    });
 
     return res.json({
       success: true,
@@ -450,6 +478,15 @@ const createVehicle = async (req, res) => {
       ]
     );
 
+    await notifyUser(req.user.id, {
+      title: "Vehicle added",
+      message: `${result.rows[0].vehicle_number} was added to your school.`,
+      type: "VEHICLE_CREATED",
+      entityType: "vehicles",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/assets" },
+    });
+
     return res.status(201).json({
       success: true,
       message: "Vehicle created successfully",
@@ -604,6 +641,15 @@ const updateVehicle = async (req, res) => {
       });
     }
 
+    await notifyUser(req.user.id, {
+      title: "Vehicle updated",
+      message: `${result.rows[0].vehicle_number} was updated successfully.`,
+      type: "VEHICLE_UPDATED",
+      entityType: "vehicles",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/assets" },
+    });
+
     return res.json({
       success: true,
       message: "Vehicle updated successfully",
@@ -664,6 +710,15 @@ const updateVehicleStatus = async (req, res) => {
         message: "Vehicle not found",
       });
     }
+
+    await notifyUser(req.user.id, {
+      title: "Vehicle status updated",
+      message: `${result.rows[0].vehicle_number} is now ${activeStatus ? "active" : "inactive"}.`,
+      type: "VEHICLE_STATUS_UPDATED",
+      entityType: "vehicles",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/assets" },
+    });
 
     return res.json({
       success: true,

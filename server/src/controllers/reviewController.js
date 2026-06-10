@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { notifyAdmins, notifyUser } = require("../utils/notifications");
 
 async function updateSchoolRating(client, schoolId) {
   const ratingResult = await client.query(
@@ -49,7 +50,8 @@ const createOrUpdateReview = async (req, res) => {
       `SELECT
         b.*,
         c.course_name,
-        ds.school_name
+        ds.school_name,
+        ds.owner_user_id
        FROM bookings b
        JOIN courses c ON b.course_id = c.id
        JOIN driving_schools ds ON b.school_id = ds.id
@@ -104,6 +106,42 @@ const createOrUpdateReview = async (req, res) => {
     );
 
     await updateSchoolRating(client, booking.school_id);
+
+    await notifyUser(
+      booking.owner_user_id,
+      {
+        title: "New review received",
+        message: `${booking.school_name} received a ${rating}-star review for ${booking.course_name}.`,
+        type: "REVIEW_SUBMITTED",
+        entityType: "reviews",
+        entityId: reviewResult.rows[0].id,
+        data: { actionLink: "/partner/reviews" },
+      },
+      client
+    );
+    await notifyUser(
+      req.user.id,
+      {
+        title: "Review submitted",
+        message: `Your review for ${booking.school_name} was saved.`,
+        type: "REVIEW_SUBMITTED",
+        entityType: "reviews",
+        entityId: reviewResult.rows[0].id,
+        data: { actionLink: "/customer/reviews" },
+      },
+      client
+    );
+    await notifyAdmins(
+      {
+        title: "New customer review",
+        message: `${booking.school_name} received a ${rating}-star review.`,
+        type: "REVIEW_SUBMITTED",
+        entityType: "reviews",
+        entityId: reviewResult.rows[0].id,
+        data: { actionLink: "/admin/reviews" },
+      },
+      client
+    );
 
     await client.query("COMMIT");
 

@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { notifyAdmins, notifyUser } = require("../utils/notifications");
 
 const bookingListSelect = `
   b.id,
@@ -175,16 +176,40 @@ const createBooking = async (req, res) => {
       ]
     );
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        course.owner_user_id,
-        "New Booking Request",
-        `New booking request received for ${course.course_name}.`,
-        "BOOKING",
-      ]
+    await notifyUser(
+      course.owner_user_id,
+      {
+        title: "New booking request",
+        message: `New booking request received for ${course.course_name}.`,
+        type: "BOOKING_CREATED",
+        entityType: "bookings",
+        entityId: booking.id,
+        data: { actionLink: "/partner/bookings" },
+      },
+      client
+    );
+    await notifyUser(
+      req.user.id,
+      {
+        title: "Booking request submitted",
+        message: `Your booking request for ${course.course_name} was sent to ${course.school_name}.`,
+        type: "BOOKING_CREATED",
+        entityType: "bookings",
+        entityId: booking.id,
+        data: { actionLink: "/customer/bookings" },
+      },
+      client
+    );
+    await notifyAdmins(
+      {
+        title: "New booking created",
+        message: `A customer requested ${course.course_name} at ${course.school_name}.`,
+        type: "BOOKING_CREATED",
+        entityType: "bookings",
+        entityId: booking.id,
+        data: { actionLink: "/admin/bookings" },
+      },
+      client
     );
 
     await client.query("COMMIT");
@@ -368,16 +393,29 @@ const cancelMyBooking = async (req, res) => {
       ]
     );
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        booking.owner_user_id,
-        "Booking Cancelled",
-        `A booking for ${booking.school_name} was cancelled by the customer.`,
-        "BOOKING",
-      ]
+    await notifyUser(
+      booking.owner_user_id,
+      {
+        title: "Booking cancelled",
+        message: `A booking for ${booking.school_name} was cancelled by the customer.`,
+        type: "BOOKING_CANCELLED",
+        entityType: "bookings",
+        entityId: bookingId,
+        data: { actionLink: "/partner/bookings" },
+      },
+      client
+    );
+    await notifyUser(
+      req.user.id,
+      {
+        title: "Booking cancelled",
+        message: `Your booking at ${booking.school_name} was cancelled.`,
+        type: "BOOKING_CANCELLED",
+        entityType: "bookings",
+        entityId: bookingId,
+        data: { actionLink: "/customer/bookings" },
+      },
+      client
     );
 
     await client.query("COMMIT");

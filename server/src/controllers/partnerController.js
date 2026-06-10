@@ -8,6 +8,8 @@ const {
   toNumber,
   toPositiveInteger,
 } = require("../utils/schoolVerification");
+const { notifyAdmins, notifyUser } = require("../utils/notifications");
+const { uploadSchoolDocumentFile } = require("../utils/storage");
 
 const getMySchool = async (req, res) => {
   try {
@@ -72,7 +74,33 @@ const createOrUpdateMySchool = async (req, res) => {
       pickup_drop_available,
     } = req.body;
 
-    const missingFields = getMissingPartnerSchoolFields(req.body);
+    const existingSchool = await pool.query(
+      `SELECT
+        id,
+        status,
+        license_document_url,
+        owner_id_proof_url,
+        license_document_path,
+        owner_id_proof_path,
+        license_document_mime_type,
+        owner_id_proof_mime_type,
+        license_document_uploaded_at,
+        owner_id_proof_uploaded_at
+       FROM driving_schools
+       WHERE owner_user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [req.user.id]
+    );
+    const existingSchoolRow = existingSchool.rows[0] || {};
+    const uploadedFiles = getVerificationFiles(req);
+    const validationBody = {
+      ...req.body,
+      license_document_url: cleanText(license_document_url) || cleanText(existingSchoolRow.license_document_url) || (uploadedFiles.licenseDocument ? "uploaded" : ""),
+      owner_id_proof_url: cleanText(owner_id_proof_url) || cleanText(existingSchoolRow.owner_id_proof_url) || (uploadedFiles.ownerIdProof ? "uploaded" : ""),
+    };
+
+    const missingFields = getMissingPartnerSchoolFields(validationBody);
 
     if (missingFields.length) {
       return res.status(400).json({
@@ -80,6 +108,12 @@ const createOrUpdateMySchool = async (req, res) => {
         message: `Missing required fields: ${missingFields.join(", ")}`,
       });
     }
+
+    const uploadedDocuments = await uploadVerificationDocuments({
+      req,
+      schoolId: existingSchoolRow.id,
+      files: uploadedFiles,
+    });
 
     const schoolValues = {
       schoolName: cleanText(school_name),
@@ -98,8 +132,14 @@ const createOrUpdateMySchool = async (req, res) => {
       ownerEmail: cleanText(owner_email),
       googleMapsLink: cleanText(google_maps_link),
       licenseNumber: cleanText(license_number),
-      licenseDocumentUrl: cleanText(license_document_url),
-      ownerIdProofUrl: cleanText(owner_id_proof_url),
+      licenseDocumentUrl: uploadedDocuments.licenseDocument?.url || cleanText(license_document_url) || cleanText(existingSchoolRow.license_document_url),
+      ownerIdProofUrl: uploadedDocuments.ownerIdProof?.url || cleanText(owner_id_proof_url) || cleanText(existingSchoolRow.owner_id_proof_url),
+      licenseDocumentPath: uploadedDocuments.licenseDocument?.path || cleanText(existingSchoolRow.license_document_path) || null,
+      ownerIdProofPath: uploadedDocuments.ownerIdProof?.path || cleanText(existingSchoolRow.owner_id_proof_path) || null,
+      licenseDocumentMimeType: uploadedDocuments.licenseDocument?.mimeType || cleanText(existingSchoolRow.license_document_mime_type) || null,
+      ownerIdProofMimeType: uploadedDocuments.ownerIdProof?.mimeType || cleanText(existingSchoolRow.owner_id_proof_mime_type) || null,
+      licenseDocumentUploadedAt: uploadedDocuments.licenseDocument ? new Date() : existingSchoolRow.license_document_uploaded_at || null,
+      ownerIdProofUploadedAt: uploadedDocuments.ownerIdProof ? new Date() : existingSchoolRow.owner_id_proof_uploaded_at || null,
       panNumber: cleanText(pan_number),
       gstNumber: cleanOptionalText(gst_number),
       bankAccountName: cleanText(bank_account_name),
@@ -109,15 +149,6 @@ const createOrUpdateMySchool = async (req, res) => {
       workingHours: cleanText(working_hours),
       pickupDropAvailable: toBoolean(pickup_drop_available),
     };
-
-    const existingSchool = await pool.query(
-      `SELECT id, status
-       FROM driving_schools
-       WHERE owner_user_id = $1
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [req.user.id]
-    );
 
     let result;
 
@@ -153,6 +184,12 @@ const createOrUpdateMySchool = async (req, res) => {
           upi_id = $24,
           working_hours = $25,
           pickup_drop_available = $26,
+          license_document_path = $27,
+          owner_id_proof_path = $28,
+          license_document_mime_type = $29,
+          owner_id_proof_mime_type = $30,
+          license_document_uploaded_at = $31,
+          owner_id_proof_uploaded_at = $32,
           status = 'PENDING',
           verification_status = 'PENDING',
           rejection_reason = NULL,
@@ -160,7 +197,7 @@ const createOrUpdateMySchool = async (req, res) => {
           verification_reviewed_at = NULL,
           verification_reviewed_by = NULL,
           updated_at = NOW()
-         WHERE id = $27
+         WHERE id = $33
          RETURNING *`,
         [
           schoolValues.schoolName,
@@ -189,11 +226,35 @@ const createOrUpdateMySchool = async (req, res) => {
           schoolValues.upiId,
           schoolValues.workingHours,
           schoolValues.pickupDropAvailable,
+          schoolValues.licenseDocumentPath,
+          schoolValues.ownerIdProofPath,
+          schoolValues.licenseDocumentMimeType,
+          schoolValues.ownerIdProofMimeType,
+          schoolValues.licenseDocumentUploadedAt,
+          schoolValues.ownerIdProofUploadedAt,
           schoolId,
         ]
       );
 
       const school = serializeSchool(result.rows[0]);
+
+      await notifyUser(req.user.id, {
+        title: "School profile updated",
+        message: "Your school profile was submitted for admin review.",
+        type: "SCHOOL_PROFILE_UPDATED",
+        entityType: "driving_schools",
+        entityId: school.id,
+        data: { actionLink: "/partner/school" },
+      });
+      await notifyAdmins({
+        title: "School profile needs review",
+        message: `${school.school_name || "A school"} updated their profile for review.`,
+        type: "SCHOOL_PROFILE_UPDATED",
+        entityType: "driving_schools",
+        entityId: school.id,
+        data: { actionLink: "/admin/schools" },
+      });
+      await notifyDocumentUploads(req.user.id, school, uploadedDocuments);
 
       return res.json({
         success: true,
@@ -233,6 +294,12 @@ const createOrUpdateMySchool = async (req, res) => {
         upi_id,
         working_hours,
         pickup_drop_available,
+        license_document_path,
+        owner_id_proof_path,
+        license_document_mime_type,
+        owner_id_proof_mime_type,
+        license_document_uploaded_at,
+        owner_id_proof_uploaded_at,
         status,
         verification_status,
         rejection_reason,
@@ -241,7 +308,7 @@ const createOrUpdateMySchool = async (req, res) => {
        VALUES
        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
         $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
-        $27, 'PENDING', 'PENDING', NULL, NOW())
+        $27, $28, $29, $30, $31, $32, $33, 'PENDING', 'PENDING', NULL, NOW())
        RETURNING *`,
       [
         req.user.id,
@@ -271,10 +338,34 @@ const createOrUpdateMySchool = async (req, res) => {
         schoolValues.upiId,
         schoolValues.workingHours,
         schoolValues.pickupDropAvailable,
+        schoolValues.licenseDocumentPath,
+        schoolValues.ownerIdProofPath,
+        schoolValues.licenseDocumentMimeType,
+        schoolValues.ownerIdProofMimeType,
+        schoolValues.licenseDocumentUploadedAt,
+        schoolValues.ownerIdProofUploadedAt,
       ]
     );
 
     const school = serializeSchool(result.rows[0]);
+
+    await notifyUser(req.user.id, {
+      title: "School profile submitted",
+      message: "Your school profile was submitted and is pending admin review.",
+      type: "SCHOOL_PROFILE_SUBMITTED",
+      entityType: "driving_schools",
+      entityId: school.id,
+      data: { actionLink: "/partner/school" },
+    });
+    await notifyAdmins({
+      title: "New school profile submitted",
+      message: `${school.school_name || "A school"} submitted a profile for review.`,
+      type: "SCHOOL_PROFILE_SUBMITTED",
+      entityType: "driving_schools",
+      entityId: school.id,
+      data: { actionLink: "/admin/schools" },
+    });
+    await notifyDocumentUploads(req.user.id, school, uploadedDocuments);
 
     return res.status(201).json({
       success: true,
@@ -296,3 +387,61 @@ module.exports = {
   getMySchool,
   createOrUpdateMySchool,
 };
+
+function getUploadedFile(req, fieldName) {
+  return req.files?.[fieldName]?.[0] || null;
+}
+
+function getVerificationFiles(req) {
+  return {
+    licenseDocument: getUploadedFile(req, "license_document_file"),
+    ownerIdProof: getUploadedFile(req, "owner_id_proof_file"),
+  };
+}
+
+async function uploadVerificationDocuments({ req, schoolId, files }) {
+  return {
+    licenseDocument: files.licenseDocument
+      ? await uploadSchoolDocumentFile({
+          file: files.licenseDocument,
+          ownerUserId: req.user.id,
+          schoolId,
+          fieldName: "license_document",
+        })
+      : null,
+    ownerIdProof: files.ownerIdProof
+      ? await uploadSchoolDocumentFile({
+          file: files.ownerIdProof,
+          ownerUserId: req.user.id,
+          schoolId,
+          fieldName: "owner_id_proof",
+        })
+      : null,
+  };
+}
+
+async function notifyDocumentUploads(ownerUserId, school, uploadedDocuments) {
+  const uploadedLabels = [
+    uploadedDocuments.licenseDocument ? "license document" : "",
+    uploadedDocuments.ownerIdProof ? "owner ID proof" : "",
+  ].filter(Boolean);
+
+  if (!uploadedLabels.length) return;
+
+  await notifyUser(ownerUserId, {
+    title: "Document uploaded",
+    message: `Uploaded ${uploadedLabels.join(" and ")} successfully.`,
+    type: "DOCUMENT_UPLOADED",
+    entityType: "driving_schools",
+    entityId: school.id,
+    data: { actionLink: "/partner/school" },
+  });
+  await notifyAdmins({
+    title: "School document uploaded",
+    message: `${school.school_name || "A school"} uploaded ${uploadedLabels.join(" and ")}.`,
+    type: "DOCUMENT_UPLOADED",
+    entityType: "driving_schools",
+    entityId: school.id,
+    data: { actionLink: "/admin/documents" },
+  });
+}

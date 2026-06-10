@@ -256,6 +256,8 @@ Required values are listed in `.env.example`.
 - `GOOGLE_MAPS_API_KEY`: maps-ready placeholder.
 - `EMAIL_PROVIDER`: set to `brevo_api` on Render for registration email OTP delivery.
 - `BREVO_API_KEY`, `BREVO_SENDER_NAME`, `BREVO_SENDER_EMAIL`: Brevo Transactional Email API credentials and verified sender details.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`: Supabase project URL and service role key used for school document uploads.
+- `SUPABASE_DOCUMENTS_BUCKET`: Supabase Storage bucket for school documents, defaults to `school-documents`.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`: SMTP fallback values if `EMAIL_PROVIDER` is not `brevo_api`.
 
 Do not put `NODE_ENV` in `.env`; Next and npm set it for the relevant command.

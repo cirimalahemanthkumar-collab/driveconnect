@@ -6,6 +6,7 @@ const {
 } = require("../controllers/partnerController");
 
 const { protect, allowRoles } = require("../middleware/authMiddleware");
+const { schoolDocumentUpload } = require("../middleware/documentUpload");
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.put(
   "/school",
   protect,
   allowRoles("SCHOOL_OWNER"),
+  schoolDocumentUpload,
   createOrUpdateMySchool
 );
 

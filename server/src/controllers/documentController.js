@@ -1,4 +1,6 @@
 const pool = require("../db");
+const { notifyAdmins, notifyUser } = require("../utils/notifications");
+const { uploadSchoolDocumentFile } = require("../utils/storage");
 
 async function getSchoolByOwner(userId) {
   const result = await pool.query(
@@ -45,13 +47,13 @@ const uploadSchoolDocument = async (req, res) => {
       expiry_date,
     } = req.body;
 
+    const uploadedFile = getUploadedFile(req, "document_file");
     const normalizedDocumentType = normalizeAdditionalDocumentType(document_type);
-    const documentUrl = cleanOptionalText(document_url);
 
-    if (!document_type || !documentUrl) {
+    if (!document_type || (!uploadedFile && !cleanOptionalText(document_url))) {
       return res.status(400).json({
         success: false,
-        message: "Document type and document URL are required",
+        message: "Document type and document file or URL are required",
       });
     }
 
@@ -71,6 +73,16 @@ const uploadSchoolDocument = async (req, res) => {
       });
     }
 
+    const uploadedDocument = uploadedFile
+      ? await uploadSchoolDocumentFile({
+          file: uploadedFile,
+          ownerUserId: req.user.id,
+          schoolId: school.id,
+          fieldName: normalizedDocumentType,
+        })
+      : null;
+    const documentUrl = uploadedDocument?.url || cleanOptionalText(document_url);
+
     const result = await pool.query(
       `INSERT INTO school_documents
        (
@@ -78,44 +90,54 @@ const uploadSchoolDocument = async (req, res) => {
         document_type,
         document_number,
         document_url,
+        document_path,
         file_name,
         file_type,
+        mime_type,
         file_size_bytes,
         notes,
         status,
         expiry_date
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PENDING', $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'PENDING', $11)
        RETURNING *,
         document_type AS "documentType",
         document_url AS "documentUrl",
+        document_path AS "documentPath",
         file_name AS "fileName",
+        mime_type AS "mimeType",
         uploaded_at AS "uploadedAt"`,
       [
         school.id,
         normalizedDocumentType,
         cleanOptionalText(document_number),
         documentUrl,
-        cleanOptionalText(file_name),
-        cleanOptionalText(file_type),
-        file_size_bytes || null,
+        uploadedDocument?.path || null,
+        uploadedFile?.originalname || cleanOptionalText(file_name),
+        uploadedFile?.mimetype || cleanOptionalText(file_type),
+        uploadedDocument?.mimeType || uploadedFile?.mimetype || cleanOptionalText(file_type),
+        uploadedFile?.size || file_size_bytes || null,
         cleanOptionalText(notes),
         cleanOptionalText(expiry_date),
       ]
     );
 
-    await pool.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       SELECT id, $1, $2, $3
-       FROM users
-       WHERE role IN ('ADMIN', 'SUPER_ADMIN')`,
-      [
-        "New School Document Uploaded",
-        `${school.school_name} uploaded a new document: ${normalizedDocumentType}`,
-        "DOCUMENT",
-      ]
-    );
+    await notifyUser(req.user.id, {
+      title: "Document uploaded",
+      message: `${normalizedDocumentType} was submitted for admin review.`,
+      type: "DOCUMENT_UPLOADED",
+      entityType: "school_documents",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/partner/documents" },
+    });
+    await notifyAdmins({
+      title: "New school document uploaded",
+      message: `${school.school_name} uploaded a new document: ${normalizedDocumentType}.`,
+      type: "DOCUMENT_UPLOADED",
+      entityType: "school_documents",
+      entityId: result.rows[0].id,
+      data: { actionLink: "/admin/documents" },
+    });
 
     return res.status(201).json({
       success: true,
@@ -147,7 +169,9 @@ const getMySchoolDocuments = async (req, res) => {
       `SELECT *,
         document_type AS "documentType",
         document_url AS "documentUrl",
+        document_path AS "documentPath",
         file_name AS "fileName",
+        mime_type AS "mimeType",
         uploaded_at AS "uploadedAt"
        FROM school_documents
        WHERE school_id = $1
@@ -179,7 +203,9 @@ const getAdminSchoolDocuments = async (req, res) => {
         sd.*,
         sd.document_type AS "documentType",
         sd.document_url AS "documentUrl",
+        sd.document_path AS "documentPath",
         sd.file_name AS "fileName",
+        sd.mime_type AS "mimeType",
         sd.uploaded_at AS "uploadedAt",
         ds.school_name,
         ds.school_name AS "schoolName",
@@ -277,16 +303,20 @@ const updateDocumentStatus = async (req, res) => {
 
     const updatedDocument = updatedResult.rows[0];
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        oldDocument.owner_user_id,
-        "School Document Status Updated",
-        `Your document "${oldDocument.document_type}" is now ${status}.`,
-        "DOCUMENT",
-      ]
+    await notifyUser(
+      oldDocument.owner_user_id,
+      {
+        title: "School document status updated",
+        message: `Your document "${oldDocument.document_type}" is now ${status}.`,
+        type: status === "APPROVED" ? "DOCUMENT_APPROVED" : status === "REJECTED" ? "DOCUMENT_REJECTED" : "DOCUMENT_STATUS",
+        entityType: "school_documents",
+        entityId: documentId,
+        data: {
+          actionLink: "/partner/documents",
+          rejectionReason: status === "REJECTED" ? rejection_reason || "Rejected by admin" : null,
+        },
+      },
+      client
     );
 
     await client.query(
@@ -337,3 +367,7 @@ module.exports = {
   getAdminSchoolDocuments,
   updateDocumentStatus,
 };
+
+function getUploadedFile(req, fieldName) {
+  return req.files?.[fieldName]?.[0] || null;
+}

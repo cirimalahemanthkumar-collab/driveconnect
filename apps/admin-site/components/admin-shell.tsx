@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useAuth } from "./auth-context";
 import { Badge, Button, LoadingPanel } from "./ui";
+import { NotificationBell } from "./notification-bell";
 
 const adminLinks = [
   { href: "/admin/dashboard", label: "Overview" },
@@ -66,7 +67,10 @@ export function AdminShell({ title, eyebrow, children, actions }: { title: strin
             <p className="text-sm font-bold uppercase tracking-wide text-indigo-700">{eyebrow}</p>
             <h1 className="mt-1 text-3xl font-black text-slate-950">{title}</h1>
           </div>
-          {actions}
+          <div className="flex flex-wrap items-center gap-2">
+            <NotificationBell />
+            {actions}
+          </div>
         </div>
         {children}
       </section>

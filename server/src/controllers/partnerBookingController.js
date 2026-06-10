@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { notifyUser } = require("../utils/notifications");
 
 const partnerBookingSelect = `
   b.id,
@@ -275,20 +276,35 @@ const updatePartnerBookingStatus = async (req, res) => {
       ]
     );
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        oldBooking.customer_user_id,
-        nextStatus === "ACCEPTED"
-          ? "Booking Accepted"
-          : "Booking Rejected",
-        nextStatus === "ACCEPTED"
-          ? `Your booking for ${oldBooking.course_name} has been accepted by ${school.school_name}.`
-          : `Your booking for ${oldBooking.course_name} has been rejected by ${school.school_name}.`,
-        "BOOKING",
-      ]
+    await notifyUser(
+      oldBooking.customer_user_id,
+      {
+        title: nextStatus === "ACCEPTED" ? "Booking accepted" : "Booking rejected",
+        message:
+          nextStatus === "ACCEPTED"
+            ? `Your booking for ${oldBooking.course_name} has been accepted by ${school.school_name}.`
+            : `Your booking for ${oldBooking.course_name} has been rejected by ${school.school_name}.`,
+        type: nextStatus === "ACCEPTED" ? "BOOKING_ACCEPTED" : "BOOKING_REJECTED",
+        entityType: "bookings",
+        entityId: bookingId,
+        data: {
+          actionLink: "/customer/bookings",
+          rejectionReason: nextStatus === "REJECTED" ? rejection_reason || "Booking rejected by driving school" : null,
+        },
+      },
+      client
+    );
+    await notifyUser(
+      req.user.id,
+      {
+        title: nextStatus === "ACCEPTED" ? "Booking accepted" : "Booking rejected",
+        message: `You ${nextStatus.toLowerCase()} ${oldBooking.customer_name || "a customer"}'s booking for ${oldBooking.course_name}.`,
+        type: nextStatus === "ACCEPTED" ? "BOOKING_ACCEPTED" : "BOOKING_REJECTED",
+        entityType: "bookings",
+        entityId: bookingId,
+        data: { actionLink: "/partner/bookings" },
+      },
+      client
     );
 
     await client.query(
@@ -420,16 +436,29 @@ const completePartnerBooking = async (req, res) => {
       ]
     );
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        oldBooking.customer_user_id,
-        "Training Completed",
-        `Your training for ${oldBooking.course_name} has been marked as completed.`,
-        "BOOKING",
-      ]
+    await notifyUser(
+      oldBooking.customer_user_id,
+      {
+        title: "Training completed",
+        message: `Your training for ${oldBooking.course_name} has been marked as completed.`,
+        type: "BOOKING_COMPLETED",
+        entityType: "bookings",
+        entityId: bookingId,
+        data: { actionLink: "/customer/bookings" },
+      },
+      client
+    );
+    await notifyUser(
+      req.user.id,
+      {
+        title: "Booking completed",
+        message: `You marked ${oldBooking.course_name} as completed.`,
+        type: "BOOKING_COMPLETED",
+        entityType: "bookings",
+        entityId: bookingId,
+        data: { actionLink: "/partner/bookings" },
+      },
+      client
     );
 
     await client.query("COMMIT");

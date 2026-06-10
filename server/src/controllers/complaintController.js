@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { notifyAdmins, notifyUser } = require("../utils/notifications");
 
 async function getSchoolByOwner(userId) {
   const result = await pool.query(
@@ -92,17 +93,28 @@ const createComplaint = async (req, res) => {
       [complaint.id, req.user.id, description]
     );
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       SELECT id, $1, $2, $3
-       FROM users
-       WHERE role IN ('ADMIN', 'SUPER_ADMIN', 'SUPPORT_STAFF')`,
-      [
-        "New Complaint Raised",
-        `New complaint received: ${subject}`,
-        "COMPLAINT",
-      ]
+    await notifyAdmins(
+      {
+        title: "New complaint raised",
+        message: `New complaint received: ${subject}`,
+        type: "COMPLAINT_CREATED",
+        entityType: "complaints",
+        entityId: complaint.id,
+        data: { actionLink: "/admin/complaints" },
+      },
+      client
+    );
+    await notifyUser(
+      req.user.id,
+      {
+        title: "Complaint submitted",
+        message: `Your complaint "${subject}" was submitted.`,
+        type: "COMPLAINT_CREATED",
+        entityType: "complaints",
+        entityId: complaint.id,
+        data: { actionLink: req.user.role === "SCHOOL_OWNER" ? "/partner/complaints" : "/customer/complaints" },
+      },
+      client
     );
 
     await client.query("COMMIT");
@@ -457,16 +469,20 @@ const updateComplaintByAdmin = async (req, res) => {
       );
     }
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        oldComplaint.raised_by_user_id,
-        "Complaint Status Updated",
-        `Your complaint status is now ${status}.`,
-        "COMPLAINT",
-      ]
+    await notifyUser(
+      oldComplaint.raised_by_user_id,
+      {
+        title: "Complaint status updated",
+        message: `Your complaint status is now ${status}.`,
+        type: "COMPLAINT_STATUS_UPDATED",
+        entityType: "complaints",
+        entityId: complaintId,
+        data: {
+          actionLink: "/customer/complaints",
+          adminResponse: admin_response || null,
+        },
+      },
+      client
     );
 
     await client.query(

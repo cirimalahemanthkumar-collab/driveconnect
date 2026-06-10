@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Button, Card, Input, StatusBadge } from "../../../components/ui";
 import { useApiResource } from "../../../hooks/use-api-resource";
 import { apiRequest, getApiErrorMessage } from "../../../lib/api";
@@ -10,6 +10,10 @@ import { ErrorBanner, Field, FormError, LoadingState, PageIntro } from "../../..
 
 type FieldType = "text" | "email" | "tel" | "url" | "number" | "textarea" | "checkbox";
 type ProfileForm = Record<string, string | boolean>;
+type ProfileFiles = {
+  license_document_file: File | null;
+  owner_id_proof_file: File | null;
+};
 
 type ProfileField = {
   key: string;
@@ -33,8 +37,6 @@ const profileFields: ProfileField[] = [
   { key: "pincode", label: "Pincode", required: true },
   { key: "google_maps_link", label: "Google Maps link", type: "url", required: true, className: "md:col-span-2" },
   { key: "license_number", label: "Driving school license number", required: true },
-  { key: "license_document_url", label: "License document URL", type: "url", required: true },
-  { key: "owner_id_proof_url", label: "Owner ID proof URL", type: "url", required: true },
   { key: "pan_number", label: "PAN number", required: true },
   { key: "gst_number", label: "GST number" },
   { key: "bank_account_name", label: "Bank account name", required: true },
@@ -49,6 +51,12 @@ const profileFields: ProfileField[] = [
 
 const requiredFields = profileFields.filter((field) => field.required);
 const fieldLabels = new Map(profileFields.map((field) => [field.key, field.label]));
+const documentLabels = {
+  license_document_file: "License document",
+  owner_id_proof_file: "Owner ID proof"
+} as const;
+const allowedDocumentTypes = new Set(["image/png", "image/jpeg", "application/pdf"]);
+const maxDocumentSizeBytes = 5 * 1024 * 1024;
 
 export default function PartnerSchoolPage() {
   const resource = useApiResource<unknown>(API_ENDPOINTS.partner.school, {});
@@ -56,6 +64,7 @@ export default function PartnerSchoolPage() {
   const hasSavedProfile = hasProfile(school);
   const [form, setForm] = useState<ProfileForm>(() => emptyForm());
   const [showForm, setShowForm] = useState(false);
+  const [files, setFiles] = useState<ProfileFiles>(() => emptyFiles());
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
@@ -72,8 +81,19 @@ export default function PartnerSchoolPage() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const missingFields = getMissingFields(form);
-    if (missingFields.length) {
-      setFormError(`Missing required fields: ${missingFields.map((key) => fieldLabels.get(key) ?? key).join(", ")}`);
+    const missingDocuments = getMissingDocuments(school, files);
+    if (missingFields.length || missingDocuments.length) {
+      const labels = [
+        ...missingFields.map((key) => fieldLabels.get(key) ?? key),
+        ...missingDocuments.map((key) => documentLabels[key])
+      ];
+      setFormError(`Missing required fields: ${labels.join(", ")}`);
+      return;
+    }
+
+    const fileError = validateProfileFiles(files);
+    if (fileError) {
+      setFormError(fileError);
       return;
     }
 
@@ -81,12 +101,18 @@ export default function PartnerSchoolPage() {
     setFormError("");
     setSuccess("");
     try {
+      const formData = toFormData(toPayload(form));
+      appendFile(formData, "license_document_file", files.license_document_file);
+      appendFile(formData, "owner_id_proof_file", files.owner_id_proof_file);
+
       await apiRequest({
         url: API_ENDPOINTS.partner.school,
         method: "PUT",
-        data: toPayload(form)
+        data: formData,
+        headers: { "Content-Type": "multipart/form-data" }
       });
       setSuccess("School profile submitted for admin review.");
+      setFiles(emptyFiles());
       setShowForm(false);
       await resource.reload();
     } catch (requestError) {
@@ -142,6 +168,18 @@ export default function PartnerSchoolPage() {
               {profileFields.map((field) => (
                 <ProfileInput key={field.key} field={field} form={form} setForm={setForm} />
               ))}
+              <DocumentInput
+                label="License document"
+                existingUrl={getDocumentUrl(school, ["license_document_url", "licenseDocumentUrl"])}
+                selectedFile={files.license_document_file}
+                onChange={(event) => setDocumentFile(event, "license_document_file", setFiles, setFormError)}
+              />
+              <DocumentInput
+                label="Owner ID proof"
+                existingUrl={getDocumentUrl(school, ["owner_id_proof_url", "ownerIdProofUrl"])}
+                selectedFile={files.owner_id_proof_file}
+                onChange={(event) => setDocumentFile(event, "owner_id_proof_file", setFiles, setFormError)}
+              />
             </div>
             <input type="hidden" name="status" value="PENDING" />
             <input type="hidden" name="verification_status" value="PENDING" />
@@ -210,8 +248,49 @@ function ProfileInput({
   );
 }
 
+function DocumentInput({
+  label,
+  existingUrl,
+  selectedFile,
+  onChange
+}: {
+  label: string;
+  existingUrl: string;
+  selectedFile: File | null;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <Field label={label}>
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <input
+          accept="image/png,image/jpeg,application/pdf"
+          className="block w-full text-sm font-semibold text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-blue-700 hover:file:bg-blue-100"
+          onChange={onChange}
+          type="file"
+        />
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+          <span>PNG, JPEG, or PDF up to 5 MB</span>
+          {selectedFile ? <span className="text-slate-900">{selectedFile.name}</span> : null}
+          {existingUrl ? (
+            <a className="text-blue-700 hover:text-blue-900" href={existingUrl} target="_blank" rel="noreferrer">
+              View uploaded document
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </Field>
+  );
+}
+
 function emptyForm(): ProfileForm {
   return Object.fromEntries(profileFields.map((field) => [field.key, field.type === "checkbox" ? false : ""]));
+}
+
+function emptyFiles(): ProfileFiles {
+  return {
+    license_document_file: null,
+    owner_id_proof_file: null
+  };
 }
 
 function formFromSchool(school: ApiRecord): ProfileForm {
@@ -238,8 +317,6 @@ function toPayload(form: ProfileForm) {
     pincode: stringValue(form.pincode).trim(),
     google_maps_link: stringValue(form.google_maps_link).trim(),
     license_number: stringValue(form.license_number).trim(),
-    license_document_url: stringValue(form.license_document_url).trim(),
-    owner_id_proof_url: stringValue(form.owner_id_proof_url).trim(),
     pan_number: stringValue(form.pan_number).trim(),
     gst_number: stringValue(form.gst_number).trim(),
     bank_account_name: stringValue(form.bank_account_name).trim(),
@@ -257,6 +334,50 @@ function toPayload(form: ProfileForm) {
   };
 }
 
+function toFormData(payload: Record<string, unknown>) {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    formData.append(key, String(value));
+  });
+  return formData;
+}
+
+function appendFile(formData: FormData, key: keyof ProfileFiles, file: File | null) {
+  if (file) formData.append(key, file);
+}
+
+function setDocumentFile(
+  event: ChangeEvent<HTMLInputElement>,
+  key: keyof ProfileFiles,
+  setFiles: (files: ProfileFiles | ((files: ProfileFiles) => ProfileFiles)) => void,
+  setFormError: (message: string) => void
+) {
+  const file = event.target.files?.[0] ?? null;
+  const fileError = validateDocumentFile(file);
+
+  if (fileError) {
+    event.target.value = "";
+    setFormError(fileError);
+    setFiles((current) => ({ ...current, [key]: null }));
+    return;
+  }
+
+  setFormError("");
+  setFiles((current) => ({ ...current, [key]: file }));
+}
+
+function validateProfileFiles(files: ProfileFiles) {
+  return validateDocumentFile(files.license_document_file) || validateDocumentFile(files.owner_id_proof_file);
+}
+
+function validateDocumentFile(file: File | null) {
+  if (!file) return "";
+  if (!allowedDocumentTypes.has(file.type)) return "Only PNG, JPEG, and PDF files are allowed.";
+  if (file.size > maxDocumentSizeBytes) return "File must be less than 5 MB.";
+  return "";
+}
+
 function getMissingFields(form: ProfileForm) {
   return requiredFields
     .filter((field) => {
@@ -265,6 +386,25 @@ function getMissingFields(form: ProfileForm) {
       return !stringValue(form[field.key]).trim();
     })
     .map((field) => field.key);
+}
+
+function getMissingDocuments(school: ApiRecord, files: ProfileFiles) {
+  const missing: Array<keyof ProfileFiles> = [];
+  if (!files.license_document_file && !getDocumentUrl(school, ["license_document_url", "licenseDocumentUrl", "license_document_path", "licenseDocumentPath"])) {
+    missing.push("license_document_file");
+  }
+  if (!files.owner_id_proof_file && !getDocumentUrl(school, ["owner_id_proof_url", "ownerIdProofUrl", "owner_id_proof_path", "ownerIdProofPath"])) {
+    missing.push("owner_id_proof_file");
+  }
+  return missing;
+}
+
+function getDocumentUrl(school: ApiRecord, keys: string[]) {
+  for (const key of keys) {
+    const value = cleanSummaryValue(text(school, key));
+    if (value) return value;
+  }
+  return "";
 }
 
 function buildSummary(school: ApiRecord) {
@@ -278,8 +418,8 @@ function buildSummary(school: ApiRecord) {
     { label: "Pincode", value: text(school, "pincode") },
     { label: "Google Maps link", value: text(school, "google_maps_link", "googleMapsLink") },
     { label: "License number", value: text(school, "license_number", "licenseNumber") },
-    { label: "License document URL", value: text(school, "license_document_url", "licenseDocumentUrl") },
-    { label: "Owner ID proof URL", value: text(school, "owner_id_proof_url", "ownerIdProofUrl") },
+    { label: "License document", value: text(school, "license_document_url", "licenseDocumentUrl", "license_document_path", "licenseDocumentPath") },
+    { label: "Owner ID proof", value: text(school, "owner_id_proof_url", "ownerIdProofUrl", "owner_id_proof_path", "ownerIdProofPath") },
     { label: "PAN number", value: text(school, "pan_number", "panNumber") },
     { label: "GST number", value: text(school, "gst_number", "gstNumber") },
     { label: "Bank account name", value: text(school, "bank_account_name", "bankAccountName") },

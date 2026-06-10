@@ -18,7 +18,7 @@ export const API_ENDPOINTS = {
     sessions: "/api/customer/sessions",
     reviews: "/api/customer/reviews",
     complaints: "/api/customer/complaints",
-    notifications: "/api/notifications/my"
+    notifications: "/api/notifications"
   },
   partner: {
     dashboard: "/api/dashboard/partner",
@@ -30,6 +30,7 @@ export const API_ENDPOINTS = {
     sessions: "/api/sessions/partner",
     payoutSummary: "/api/payouts/partner/summary",
     payouts: "/api/payouts/partner",
-    documents: "/api/documents/partner/school"
+    documents: "/api/documents/partner/school",
+    notifications: "/api/notifications"
   }
 } as const;

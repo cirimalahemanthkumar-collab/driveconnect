@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "./auth-provider";
+import { NotificationBell } from "./notification-bell";
+import { API_ENDPOINTS } from "../lib/endpoints";
 
 type LinkItem = { href: string; label: string };
 
@@ -27,7 +29,8 @@ export const partnerLinks: LinkItem[] = [
   { href: "/partner/vehicles", label: "Vehicles" },
   { href: "/partner/sessions", label: "Sessions" },
   { href: "/partner/payouts", label: "Payouts" },
-  { href: "/partner/documents", label: "Documents" }
+  { href: "/partner/documents", label: "Documents" },
+  { href: "/partner/notifications", label: "Notifications" }
 ];
 
 export function AppShell({
@@ -51,9 +54,17 @@ export function AppShell({
     <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[248px_1fr]">
       <aside className="h-fit overflow-hidden rounded-lg border border-white/80 bg-white/95 shadow-soft ring-1 ring-slate-100/80 lg:sticky lg:top-24">
         <div className={`bg-gradient-to-r ${accent} p-5 text-white`}>
-          <p className="text-xs font-bold uppercase text-white/80">{role} portal</p>
-          <h1 className="mt-1 text-2xl font-black">{title}</h1>
-          <p className="mt-2 text-sm text-white/90">{user?.name ?? user?.email ?? "DriveConnect member"}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase text-white/80">{role} portal</p>
+              <h1 className="mt-1 text-2xl font-black">{title}</h1>
+              <p className="mt-2 truncate text-sm text-white/90">{user?.name ?? user?.email ?? "DriveConnect member"}</p>
+            </div>
+            <NotificationBell
+              endpoint={role === "Customer" ? API_ENDPOINTS.customer.notifications : API_ENDPOINTS.partner.notifications}
+              href={role === "Customer" ? "/customer/notifications" : "/partner/notifications"}
+            />
+          </div>
         </div>
         <nav className="grid gap-1 p-3">
           {links.map((link) => {
@@ -83,4 +94,3 @@ export function AppShell({
     </main>
   );
 }
-

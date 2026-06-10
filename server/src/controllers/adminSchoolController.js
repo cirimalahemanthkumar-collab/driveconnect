@@ -4,6 +4,7 @@ const {
   normalizeSubmittedStatus,
   serializeSchool,
 } = require("../utils/schoolVerification");
+const { notifyUser } = require("../utils/notifications");
 
 const getSchools = async (req, res) => {
   try {
@@ -195,16 +196,20 @@ const updateSchoolStatus = async (req, res) => {
       );
     }
 
-    await client.query(
-      `INSERT INTO notifications
-       (user_id, title, message, type)
-       VALUES ($1, $2, $3, $4)`,
-      [
-        updatedSchool.owner_user_id,
-        "Driving School Status Updated",
-        `Your driving school "${updatedSchool.school_name || updatedSchool.name || "School"}" status is now ${reviewStatus}.`,
-        "SCHOOL_STATUS",
-      ]
+    await notifyUser(
+      updatedSchool.owner_user_id,
+      {
+        title: reviewStatus === "APPROVED" ? "School approved" : reviewStatus === "REJECTED" ? "School rejected" : "School status updated",
+        message: `Your driving school "${updatedSchool.school_name || updatedSchool.name || "School"}" status is now ${reviewStatus}.`,
+        type: reviewStatus === "APPROVED" ? "SCHOOL_APPROVED" : reviewStatus === "REJECTED" ? "SCHOOL_REJECTED" : "SCHOOL_STATUS",
+        entityType: "driving_schools",
+        entityId: schoolId,
+        data: {
+          actionLink: "/partner/school",
+          rejectionReason,
+        },
+      },
+      client
     );
 
     await client.query(
