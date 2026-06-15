@@ -62,28 +62,44 @@ function calculateAmounts(course) {
   };
 }
 
+function resolvePreferredStartDate(body) {
+  const value =
+    body.preferred_start_date ??
+    body.preferredStartDate ??
+    body.requested_date ??
+    body.requestedDate ??
+    body.preferred_date ??
+    body.preferredDate ??
+    body.booking_date ??
+    body.bookingDate;
+
+  return typeof value === "string" ? value.trim() : value;
+}
+
 const createBooking = async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
-    const {
-      course_id,
-      preferred_start_date,
-      requested_date,
-      preferred_date,
-      requested_time,
-      preferred_time,
-    } = req.body;
-    const preferredStartDate = preferred_start_date || requested_date || preferred_date;
+    const { course_id, requested_time, preferred_time } = req.body;
+    const preferredStartDate = resolvePreferredStartDate(req.body);
 
-    if (!course_id || !preferredStartDate) {
+    if (!course_id) {
       return res.status(400).json({
         success: false,
-        message: "Course ID and preferred start date are required",
+        message: "Course ID is required",
+      });
+    }
+
+    if (!preferredStartDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a booking date.",
       });
     }
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
     const courseResult = await client.query(
       `SELECT 
@@ -136,7 +152,7 @@ const createBooking = async (req, res) => {
         school_id,
         course_id,
         booking_status,
-        preferredStartDate,
+        preferred_start_date,
         base_amount,
         discount_amount,
         tax_amount,
@@ -151,7 +167,7 @@ const createBooking = async (req, res) => {
         req.user.id,
         course.school_id,
         course.id,
-        preferred_start_date,
+        preferredStartDate,
         amounts.baseAmount,
         amounts.discountAmount,
         amounts.taxAmount,
@@ -176,43 +192,37 @@ const createBooking = async (req, res) => {
       ]
     );
 
-    await notifyUser(
-      course.owner_user_id,
-      {
+    await client.query("COMMIT");
+    transactionStarted = false;
+
+    void Promise.all([
+      notifyUser(course.owner_user_id, {
         title: "New booking request",
         message: `New booking request received for ${course.course_name}.`,
         type: "BOOKING_CREATED",
         entityType: "bookings",
         entityId: booking.id,
         data: { actionLink: "/partner/bookings" },
-      },
-      client
-    );
-    await notifyUser(
-      req.user.id,
-      {
+      }),
+      notifyUser(req.user.id, {
         title: "Booking request submitted",
         message: `Your booking request for ${course.course_name} was sent to ${course.school_name}.`,
         type: "BOOKING_CREATED",
         entityType: "bookings",
         entityId: booking.id,
         data: { actionLink: "/customer/bookings" },
-      },
-      client
-    );
-    await notifyAdmins(
-      {
+      }),
+      notifyAdmins({
         title: "New booking created",
         message: `A customer requested ${course.course_name} at ${course.school_name}.`,
         type: "BOOKING_CREATED",
         entityType: "bookings",
         entityId: booking.id,
         data: { actionLink: "/admin/bookings" },
-      },
-      client
-    );
-
-    await client.query("COMMIT");
+      }),
+    ]).catch((notificationError) => {
+      console.error("Create booking notification error:", notificationError);
+    });
 
     return res.status(201).json({
       success: true,
@@ -228,7 +238,9 @@ const createBooking = async (req, res) => {
       },
     });
   } catch (error) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
 
     console.error("Create booking error:", error);
 
